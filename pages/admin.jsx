@@ -72,6 +72,7 @@ export default function Admin() {
     }
 
     try {
+<<<<<<< HEAD
       // URLを解析
       const urlObj = new URL(affiliateUrl);
       
@@ -88,13 +89,18 @@ export default function Admin() {
       urlObj.search = pixelParams.toString();
       const modifiedUrl = urlObj.toString();
 
+=======
+>>>>>>> b3ac0f378d7837e7be878182c241655c269cde83
       // Supabaseにデータを保存
       const { data, error } = await supabase
         .from('affiliate_links')
         .upsert({
           id: shortId,
           affiliate_url: affiliateUrl,
+<<<<<<< HEAD
           modified_url: modifiedUrl,
+=======
+>>>>>>> b3ac0f378d7837e7be878182c241655c269cde83
           pixel_code: pixelCode,
           created_at: new Date().toISOString()
         });
