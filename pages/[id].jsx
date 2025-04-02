@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
+import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
@@ -16,74 +17,83 @@ export default function RedirectPage({ link, error }) {
       return;
     }
 
-    // TikTok ピクセルコードの設定（埋め込み）
-    if (link.pixel_id) {
-      try {
-        // TikTok Pixel Base Code
-        !function (w, d, t) {
-          w.TiktokOnEvent = function() {
-            var arg = Array.prototype.slice.call(arguments);
-            (w.ttq || (w.ttq = [])).push(arg);
-          };
-          var s = d.createElement(t);
-          s.async = true;
-          s.src = 'https://analytics.tiktok.com/i18n/pixel/events.js';
-          var n = d.getElementsByTagName(t)[0];
-          n.parentNode.insertBefore(s, n);
-        }(window, document, 'script');
-
-        // ピクセルIDを設定
-        window.ttq = window.ttq || [];
-        window.ttq.push(['init', link.pixel_id]);
-
-        // Purchase イベント（価格情報がある場合）
-        if (link.value) {
-          window.ttq.push([
-            'track',
-            'Purchase',
-            {
-              content_type: 'product',
-              content_id: link.id,
-              content_name: link.id,
-              quantity: 1,
-              price: link.value,
-              value: link.value,
-              currency: 'JPY',
-            },
-          ]);
-        } else {
-          // 価格情報がない場合は ClickButton イベント
-          window.ttq.push(['track', 'ClickButton']);
+    // トラッキングコードが実行される時間を待ってからリダイレクト
+    const sendEvent = async () => {
+      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, time));
+      
+      // 2秒待機してイベントを送信
+      await sleep(2000);
+      
+      if (window.ttq) {
+        try {
+          // ClickButtonイベントを送信
+          window.ttq.track('ClickButton');
+          console.log('TikTok Pixel イベント送信成功');
+        } catch (err) {
+          console.error('TikTok Pixel イベント送信エラー:', err);
         }
-        
-        // トラッキングコードが実行される時間を少し待ってからリダイレクト
-        setTimeout(() => {
-          window.location.href = link.affiliate_url;
-        }, 500);
-      } catch (err) {
-        console.error('ピクセルコード実行エラー:', err);
-        // エラーが発生しても最終的にはリダイレクト
-        window.location.href = link.affiliate_url;
+      } else {
+        console.error('TikTok Pixel (ttq) が見つかりません');
       }
-    } else {
-      // ピクセルIDがない場合は直接リダイレクト
+      
+      // さらに1秒待機してリダイレクト
+      await sleep(1000);
       window.location.href = link.affiliate_url;
-    }
+    };
+    
+    // イベント送信とリダイレクト処理を開始
+    sendEvent();
   }, [router, link, error]);
 
-  // ローディング画面（ほぼ表示されない）
+  // ページ全体のマークアップと埋め込みスクリプト
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      backgroundColor: '#f7fafc'
-    }}>
-      <div style={{ textAlign: 'center' }}>
-        <p>リダイレクト中...</p>
+    <>
+      <Head>
+        <title>リダイレクト中...</title>
+        <meta name="robots" content="noindex" />
+        {link && link.pixel_id && (
+          <script dangerouslySetInnerHTML={{
+            __html: `
+              !function (w, d, t) {
+                w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+
+                ttq.load('${link.pixel_id}');
+                ttq.page();
+              }(window, document, 'ttq');
+            `
+          }} />
+        )}
+      </Head>
+
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        backgroundColor: '#f7fafc',
+        fontFamily: 'Arial, sans-serif'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '20px', marginBottom: '20px' }}>リダイレクト中...</div>
+          <div style={{ 
+            width: '50px', 
+            height: '50px', 
+            border: '5px solid #f3f3f3',
+            borderTop: '5px solid #3498db', 
+            borderRadius: '50%',
+            margin: '0 auto',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <style jsx>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
