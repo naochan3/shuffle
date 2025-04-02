@@ -4,10 +4,9 @@ import Link from 'next/link';
 import supabase from '../lib/supabase';
 
 export default function Admin() {
-  const [pixelId, setPixelId] = useState('');
+  const [pixelCode, setPixelCode] = useState('');
   const [affiliateUrl, setAffiliateUrl] = useState('');
   const [shortId, setShortId] = useState('');
-  const [value, setValue] = useState('');
   const [resultUrl, setResultUrl] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -66,24 +65,20 @@ export default function Admin() {
     setError('');
     setResultUrl('');
 
-    if (!pixelId || !affiliateUrl || !shortId) {
+    if (!pixelCode || !affiliateUrl || !shortId) {
       setError('すべての必須フィールドを入力してください。');
       setLoading(false);
       return;
     }
 
     try {
-      // 数値に変換（空の場合はデフォルト値の0になる）
-      const numericValue = value ? parseFloat(value) : 0;
-
       // Supabaseにデータを保存
       const { data, error } = await supabase
         .from('affiliate_links')
         .upsert({
           id: shortId,
           affiliate_url: affiliateUrl,
-          pixel_id: pixelId,
-          value: numericValue,
+          pixel_code: pixelCode,
           created_at: new Date().toISOString()
         });
 
@@ -101,8 +96,7 @@ export default function Admin() {
       // フォームをクリア
       setShortId('');
       setAffiliateUrl('');
-      setPixelId('');
-      setValue('');
+      setPixelCode('');
     } catch (err) {
       console.error('Error saving data:', err);
       setError(err.message || 'データの保存中にエラーが発生しました。');
@@ -146,13 +140,13 @@ export default function Admin() {
       });
   };
 
-  // ピクセルIDを確認
+  // ピクセルコードを確認
   const openPixelModal = (link) => {
     setSelectedLink(link);
     setShowPixelModal(true);
   };
 
-  // ピクセルIDのプレビュー
+  // ピクセルコードのプレビュー
   const PixelPreviewModal = () => {
     if (!showPixelModal || !selectedLink) return null;
 
@@ -160,7 +154,7 @@ export default function Admin() {
       <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-semibold">詳細情報: {selectedLink.id}</h3>
+            <h3 className="text-xl font-semibold">ピクセルコード確認: {selectedLink.id}</h3>
             <button
               onClick={() => setShowPixelModal(false)}
               className="text-gray-500 hover:text-gray-700"
@@ -187,23 +181,39 @@ export default function Admin() {
           </div>
 
           <div className="mb-4">
-            <p className="font-semibold mb-2">ピクセルID:</p>
+            <p className="font-semibold mb-2">ピクセルコード:</p>
             <pre className="bg-gray-50 p-3 rounded overflow-x-auto text-sm">
-              {selectedLink.pixel_id}
+              {selectedLink.pixel_code}
             </pre>
             <button
-              onClick={() => copyToClipboard(selectedLink.pixel_id, 'ピクセルIDをコピーしました！')}
+              onClick={() => copyToClipboard(selectedLink.pixel_code, 'ピクセルコードをコピーしました！')}
               className="mt-2 text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded"
             >
-              IDをコピー
+              コードをコピー
             </button>
           </div>
 
           <div className="mb-4">
-            <p className="font-semibold mb-2">価格:</p>
-            <p className="bg-gray-50 p-3 rounded">
-              {selectedLink.value ? `${selectedLink.value.toLocaleString()}円` : '設定なし'}
-            </p>
+            <p className="font-semibold mb-2">ピクセルコード解析:</p>
+            <div className="bg-gray-50 p-3 rounded">
+              {selectedLink.pixel_code.includes('TikTok') ? (
+                <p className="text-green-600">✓ TikTokのピクセルコードが含まれています</p>
+              ) : (
+                <p className="text-yellow-600">⚠ TikTokのピクセルコードが見つかりません</p>
+              )}
+              
+              {selectedLink.pixel_code.includes('<script') ? (
+                <p className="text-green-600">✓ scriptタグが含まれています</p>
+              ) : (
+                <p className="text-red-600">✗ scriptタグが含まれていません - 正しく動作しない可能性があります</p>
+              )}
+              
+              {selectedLink.pixel_code.includes('ttq.track') || selectedLink.pixel_code.includes('track(') ? (
+                <p className="text-green-600">✓ トラッキングコードが含まれています</p>
+              ) : (
+                <p className="text-yellow-600">⚠ トラッキングコードが見つかりません</p>
+              )}
+            </div>
           </div>
 
           <div className="mt-4 flex justify-end">
@@ -249,16 +259,16 @@ export default function Admin() {
           <h2 className="text-xl font-semibold mb-4">新規リンク作成</h2>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label htmlFor="pixelId" className="block text-sm font-medium text-gray-700 mb-1">
-                TikTok PixelID
+              <label htmlFor="pixelCode" className="block text-sm font-medium text-gray-700 mb-1">
+                TikTok Pixelコード
               </label>
-              <input
-                type="text"
-                id="pixelId"
+              <textarea
+                id="pixelCode"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={pixelId}
-                onChange={(e) => setPixelId(e.target.value)}
-                placeholder="例: C1AB2CDE3FG"
+                rows={5}
+                value={pixelCode}
+                onChange={(e) => setPixelCode(e.target.value)}
+                placeholder="&lt;script&gt;...&lt;/script&gt;"
               />
             </div>
 
@@ -273,20 +283,6 @@ export default function Admin() {
                 value={affiliateUrl}
                 onChange={(e) => setAffiliateUrl(e.target.value)}
                 placeholder="https://example.com/affiliate-link"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label htmlFor="value" className="block text-sm font-medium text-gray-700 mb-1">
-                商品価格（オプション）
-              </label>
-              <input
-                type="number"
-                id="value"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="例: 1980"
               />
             </div>
 
@@ -369,7 +365,6 @@ export default function Admin() {
                   <tr>
                     <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                     <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">アフィリエイトURL</th>
-                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">価格</th>
                     <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">作成日時</th>
                     <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                   </tr>
@@ -382,9 +377,6 @@ export default function Admin() {
                         <div className="max-w-xs truncate">
                           {link.affiliate_url}
                         </div>
-                      </td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {link.value ? `${link.value.toLocaleString()}円` : '-'}
                       </td>
                       <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(link.created_at).toLocaleString()}
@@ -416,9 +408,9 @@ export default function Admin() {
                           <button
                             onClick={() => openPixelModal(link)}
                             className="text-orange-600 hover:text-orange-900"
-                            title="詳細情報を確認"
+                            title="ピクセルコードを確認"
                           >
-                            詳細
+                            ピクセル確認
                           </button>
                           <button
                             onClick={() => handleDelete(link.id)}
@@ -437,7 +429,7 @@ export default function Admin() {
         </div>
       </main>
 
-      {/* ピクセル情報確認モーダル */}
+      {/* ピクセルコード確認モーダル */}
       <PixelPreviewModal />
     </div>
   );

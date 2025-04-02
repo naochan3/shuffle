@@ -6,8 +6,7 @@ DROP TABLE IF EXISTS affiliate_links;
 CREATE TABLE affiliate_links (
   id TEXT PRIMARY KEY,
   affiliate_url TEXT NOT NULL,
-  pixel_id TEXT NOT NULL,
-  value NUMERIC(10, 2) DEFAULT 0,
+  pixel_code TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
