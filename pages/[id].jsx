@@ -38,15 +38,7 @@ export default function RedirectPage({ link, error }) {
       if (window.ttq) {
         try {
           // イベントを送信
-          window.ttq.identify({
-            email: '67819a2a121f0058768ba403193defa60dc95d88166789218182dd67233c984b'
-          });
-          
-          window.ttq.track('CompletePayment', {
-            currency: "JPY", 
-            value: 0, 
-            content_id: link.id
-          });
+          window.ttq.track('ClickButton');
           
           console.log('TikTok Pixel イベント送信成功');
           setFinished(true);

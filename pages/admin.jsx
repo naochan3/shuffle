@@ -4,14 +4,18 @@ import Link from 'next/link';
 import supabase from '../lib/supabase';
 
 // TikTok Pixelコードのデフォルトテンプレート
-const DEFAULT_PIXEL_CODE = `<script>
+const DEFAULT_PIXEL_CODE = `<!-- TikTok Pixel Code Start -->
+<script>
 !function (w, d, t) {
-  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
+;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
+
 
   ttq.load('あなたのPixelIDをここに入力');
   ttq.page();
 }(window, document, 'ttq');
-</script>`;
+</script>
+<!-- TikTok Pixel Code End -->`;
 
 export default function Admin() {
   const [pixelCode, setPixelCode] = useState(DEFAULT_PIXEL_CODE);
@@ -254,10 +258,13 @@ export default function Admin() {
         <h3 className="text-lg font-semibold mb-2">TikTok Pixelコードの設定方法</h3>
         <p className="mb-2">
           以下のテンプレートにあなたのTikTok PixelIDを挿入してください。<br />
-          「ttq.load('<strong>あなたのPixelIDをここに入力</strong>')」の部分を編集してください。
+          「ttq.load('<strong>あなたのPixelIDをここに入力</strong>')」の部分をあなたの実際のPixel IDに置き換えてください。
         </p>
         <p className="mb-2">
-          TikTok Pixelを設定していない場合は、<a href="https://ads.tiktok.com/marketing_api/docs?id=1727541085574145" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">TikTokのガイド</a>を参照してください。
+          TikTok広告管理画面からPixelコードをコピーして貼り付けることもできます。その場合は、テンプレート全体を置き換えてください。
+        </p>
+        <p className="mb-2">
+          TikTok Pixelを設定していない場合は、<a href="https://ads.tiktok.com/help/article/understanding-and-installing-the-tiktok-pixel" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">TikTokのガイド</a>を参照してください。
         </p>
         <button
           onClick={toggleTemplateGuide}
