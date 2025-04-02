@@ -1,11 +1,15 @@
 import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
 export default function RedirectPage({ link, error }) {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     // データが読み込まれるまでは何もしない
@@ -17,34 +21,62 @@ export default function RedirectPage({ link, error }) {
       return;
     }
 
-    // ピクセルコードをHEADに追加（HTMLとしてパース）
-    if (link.pixel_code) {
-      try {
-        const pixelScript = document.createElement('div');
-        pixelScript.innerHTML = link.pixel_code;
-        document.head.appendChild(pixelScript);
-        
-        // トラッキングコードが実行される時間を少し待ってからリダイレクト
-        setTimeout(() => {
-          window.location.href = link.affiliate_url;
-        }, 2000);
-      } catch (err) {
-        console.error('ピクセルコード実行エラー:', err);
-        // エラーが発生しても最終的にはリダイレクト
-        window.location.href = link.affiliate_url;
+    // TikTokイベント処理とリダイレクト
+    const processEvents = async () => {
+      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, time));
+      
+      // ローディング表示
+      setLoading(true);
+      
+      // 初期待機
+      await sleep(2000);
+      
+      // イベント送信中の表示
+      setSending(true);
+      
+      // ttqオブジェクトの存在確認
+      if (window.ttq) {
+        try {
+          // イベントを送信
+          window.ttq.identify({
+            email: '67819a2a121f0058768ba403193defa60dc95d88166789218182dd67233c984b'
+          });
+          
+          window.ttq.track('CompletePayment', {
+            currency: "JPY", 
+            value: 0, 
+            content_id: link.id
+          });
+          
+          console.log('TikTok Pixel イベント送信成功');
+          setFinished(true);
+        } catch (err) {
+          console.error('TikTok Pixel イベント送信エラー:', err);
+          setHasError(true);
+        }
+      } else {
+        console.error('TikTok Pixel (ttq) が見つかりません');
+        setHasError(true);
       }
-    } else {
-      // ピクセルコードがない場合は直接リダイレクト
+      
+      // さらに待機してリダイレクト
+      await sleep(2000);
       window.location.href = link.affiliate_url;
-    }
+    };
+    
+    // イベント処理を開始
+    processEvents();
   }, [router, link, error]);
 
-  // ページ全体のマークアップ
   return (
     <>
       <Head>
         <title>リダイレクト中...</title>
         <meta name="robots" content="noindex" />
+        {/* pixel_codeをheadに挿入 */}
+        {link && link.pixel_code && (
+          <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
+        )}
       </Head>
 
       <div style={{ 
@@ -57,16 +89,31 @@ export default function RedirectPage({ link, error }) {
         fontFamily: 'Arial, sans-serif'
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '20px', marginBottom: '20px' }}>リダイレクト中...</div>
+          <div>
+            <div style={{ display: loading ? 'block' : 'none' }}>
+              LOADING PIXEL TAG...
+            </div>
+            <div style={{ display: sending ? 'block' : 'none', marginTop: '10px' }}>
+              SENDING EVENT...
+            </div>
+            <div style={{ display: finished ? 'block' : 'none', marginTop: '10px', color: 'green' }}>
+              FINISHED
+            </div>
+            <div style={{ display: hasError ? 'block' : 'none', marginTop: '10px', color: 'red' }}>
+              ERROR
+            </div>
+          </div>
+          
           <div style={{ 
             width: '50px', 
             height: '50px', 
             border: '5px solid #f3f3f3',
             borderTop: '5px solid #3498db', 
             borderRadius: '50%',
-            margin: '0 auto',
+            margin: '20px auto',
             animation: 'spin 1s linear infinite'
           }}></div>
+          
           <style jsx>{`
             @keyframes spin {
               0% { transform: rotate(0deg); }

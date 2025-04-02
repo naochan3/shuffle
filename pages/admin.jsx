@@ -3,8 +3,18 @@ import Head from 'next/head';
 import Link from 'next/link';
 import supabase from '../lib/supabase';
 
+// TikTok Pixelコードのデフォルトテンプレート
+const DEFAULT_PIXEL_CODE = `<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+
+  ttq.load('あなたのPixelIDをここに入力');
+  ttq.page();
+}(window, document, 'ttq');
+</script>`;
+
 export default function Admin() {
-  const [pixelCode, setPixelCode] = useState('');
+  const [pixelCode, setPixelCode] = useState(DEFAULT_PIXEL_CODE);
   const [affiliateUrl, setAffiliateUrl] = useState('');
   const [shortId, setShortId] = useState('');
   const [resultUrl, setResultUrl] = useState('');
@@ -15,6 +25,7 @@ export default function Admin() {
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [selectedLink, setSelectedLink] = useState(null);
   const [showPixelModal, setShowPixelModal] = useState(false);
+  const [showTemplate, setShowTemplate] = useState(false);
 
   // Supabase接続確認
   useEffect(() => {
@@ -96,7 +107,7 @@ export default function Admin() {
       // フォームをクリア
       setShortId('');
       setAffiliateUrl('');
-      setPixelCode('');
+      setPixelCode(DEFAULT_PIXEL_CODE);
     } catch (err) {
       console.error('Error saving data:', err);
       setError(err.message || 'データの保存中にエラーが発生しました。');
@@ -144,6 +155,11 @@ export default function Admin() {
   const openPixelModal = (link) => {
     setSelectedLink(link);
     setShowPixelModal(true);
+  };
+
+  // テンプレートガイドの表示切替
+  const toggleTemplateGuide = () => {
+    setShowTemplate(!showTemplate);
   };
 
   // ピクセルコードのプレビュー
@@ -229,6 +245,30 @@ export default function Admin() {
     );
   };
 
+  // TikTok Pixelテンプレートガイド
+  const TemplateGuide = () => {
+    if (!showTemplate) return null;
+
+    return (
+      <div className="bg-blue-50 border border-blue-200 p-4 rounded-md mb-4">
+        <h3 className="text-lg font-semibold mb-2">TikTok Pixelコードの設定方法</h3>
+        <p className="mb-2">
+          以下のテンプレートにあなたのTikTok PixelIDを挿入してください。<br />
+          「ttq.load('<strong>あなたのPixelIDをここに入力</strong>')」の部分を編集してください。
+        </p>
+        <p className="mb-2">
+          TikTok Pixelを設定していない場合は、<a href="https://ads.tiktok.com/marketing_api/docs?id=1727541085574145" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">TikTokのガイド</a>を参照してください。
+        </p>
+        <button
+          onClick={toggleTemplateGuide}
+          className="text-sm px-3 py-1 mt-2 bg-blue-100 hover:bg-blue-200 rounded"
+        >
+          閉じる
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Head>
@@ -257,6 +297,20 @@ export default function Admin() {
         
         <div className="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto mb-8">
           <h2 className="text-xl font-semibold mb-4">新規リンク作成</h2>
+          
+          {!showTemplate && (
+            <div className="mb-4">
+              <button
+                onClick={toggleTemplateGuide}
+                className="text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded"
+              >
+                TikTok Pixelコードの設定ガイドを表示
+              </button>
+            </div>
+          )}
+          
+          <TemplateGuide />
+          
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label htmlFor="pixelCode" className="block text-sm font-medium text-gray-700 mb-1">
@@ -265,7 +319,7 @@ export default function Admin() {
               <textarea
                 id="pixelCode"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={5}
+                rows={8}
                 value={pixelCode}
                 onChange={(e) => setPixelCode(e.target.value)}
                 placeholder="&lt;script&gt;...&lt;/script&gt;"
