@@ -1,86 +1,63 @@
-import Head from 'next/head';
-import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 import supabase from '../lib/supabase';
 
+// クライアントサイドでのリダイレクト用コンポーネント
 export default function RedirectPage({ link, error }) {
   const router = useRouter();
 
   useEffect(() => {
-    // クライアントサイドでのデバッグ情報
-    if (error) {
-      console.error('エラー情報:', error);
+    // データが読み込まれるまでは何もしない
+    if (router.isFallback) return;
+
+    // エラーがある場合は404ページに遷移
+    if (error || !link) {
+      router.push('/404');
+      return;
     }
-  }, [error]);
 
-  if (router.isFallback) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-xl">読み込み中...</p>
-      </div>
-    );
-  }
+    // ピクセルコードの読み込み（トラッキング）
+    if (link.pixel_code) {
+      try {
+        const pixelScript = document.createElement('div');
+        pixelScript.innerHTML = link.pixel_code;
+        document.head.appendChild(pixelScript);
+        
+        // トラッキングコードが実行される時間を少し待ってからリダイレクト
+        setTimeout(() => {
+          window.location.href = link.affiliate_url;
+        }, 300);
+      } catch (err) {
+        console.error('ピクセルコード実行エラー:', err);
+        // エラーが発生しても最終的にはリダイレクト
+        window.location.href = link.affiliate_url;
+      }
+    } else {
+      // ピクセルコードがない場合は直接リダイレクト
+      window.location.href = link.affiliate_url;
+    }
+  }, [router, link, error]);
 
-  if (error || !link) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <Head>
-          <title>ページが見つかりません</title>
-        </Head>
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">404</h1>
-          <p className="text-gray-600 mb-8">お探しのページは存在しないか、削除された可能性があります。</p>
-          <Link href="/" className="text-blue-600 hover:underline">
-            ホームに戻る
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
+  // ローディング画面（ほぼ表示されない）
   return (
-    <div className="min-h-screen bg-white">
-      <Head>
-        <title>商品情報</title>
-        <meta name="description" content="商品詳細情報" />
-      </Head>
-      
-      {/* TikTok Pixelコードを埋め込み */}
-      {link.pixel_code && (
-        <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
-      )}
-
-      <main className="container mx-auto py-10 px-4">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold text-center mb-8">商品情報</h1>
-          
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <p className="mb-6 text-lg">
-              このページでは特別な商品情報をご紹介しています。詳しい内容を確認するには以下のリンクをクリックしてください。
-            </p>
-            
-            <div className="flex justify-center">
-              <a
-                href={link.affiliate_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition duration-200"
-              >
-                商品の詳細を見る
-              </a>
-            </div>
-          </div>
-        </div>
-      </main>
+    <div style={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      height: '100vh',
+      backgroundColor: '#f7fafc'
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <p>リダイレクト中...</p>
+      </div>
     </div>
   );
 }
 
+// サーバーサイドでデータ取得
 export async function getServerSideProps({ params }) {
   const { id } = params;
   
-  // パラメータチェック
   if (!id) {
     return {
       props: {
@@ -91,8 +68,7 @@ export async function getServerSideProps({ params }) {
   }
 
   try {
-    console.log('Supabaseに接続...');
-    console.log('ID:', id);
+    console.log('Supabaseからデータ取得中...');
     
     // IDをもとにSupabaseからデータを取得
     const { data, error } = await supabase

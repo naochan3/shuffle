@@ -11,6 +11,8 @@ export default function Admin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('確認中...');
+  const [savedLinks, setSavedLinks] = useState([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
 
   // Supabase接続確認
   useEffect(() => {
@@ -22,6 +24,8 @@ export default function Admin() {
           setConnectionStatus('接続エラー: ' + error.message);
         } else {
           setConnectionStatus('接続済み');
+          // 接続成功したら保存済みデータを読み込む
+          loadSavedLinks();
         }
       } catch (err) {
         console.error('予期しないエラー:', err);
@@ -31,6 +35,27 @@ export default function Admin() {
 
     checkConnection();
   }, []);
+
+  // 保存済みリンクを取得
+  const loadSavedLinks = async () => {
+    setLoadingLinks(true);
+    try {
+      const { data, error } = await supabase
+        .from('affiliate_links')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('データ取得エラー:', error);
+      } else {
+        setSavedLinks(data || []);
+      }
+    } catch (err) {
+      console.error('データ取得中のエラー:', err);
+    } finally {
+      setLoadingLinks(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,11 +87,44 @@ export default function Admin() {
 
       // 成功した場合、生成されたURLを表示
       setResultUrl(`${window.location.origin}/${shortId}`);
+      
+      // 保存済みデータを再読み込み
+      loadSavedLinks();
+      
+      // フォームをクリア
+      setShortId('');
+      setAffiliateUrl('');
+      setPixelCode('');
     } catch (err) {
       console.error('Error saving data:', err);
       setError(err.message || 'データの保存中にエラーが発生しました。');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 保存済みデータの削除
+  const handleDelete = async (id) => {
+    if (!confirm(`ID: ${id} のリンクを削除してもよろしいですか？`)) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('affiliate_links')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        console.error('削除エラー:', error);
+        alert(`削除中にエラーが発生しました: ${error.message}`);
+      } else {
+        // 削除成功後、リストを更新
+        loadSavedLinks();
+      }
+    } catch (err) {
+      console.error('削除処理中のエラー:', err);
+      alert('削除処理中にエラーが発生しました');
     }
   };
 
@@ -96,7 +154,8 @@ export default function Admin() {
           </div>
         )}
         
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto">
+        <div className="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto mb-8">
+          <h2 className="text-xl font-semibold mb-4">新規リンク作成</h2>
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label htmlFor="pixelCode" className="block text-sm font-medium text-gray-700 mb-1">
@@ -180,6 +239,68 @@ export default function Admin() {
                   </svg>
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+        
+        {/* 保存済みリンク一覧 */}
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">保存済みリンク一覧</h2>
+            <button 
+              onClick={loadSavedLinks} 
+              className="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md"
+              disabled={loadingLinks}
+            >
+              {loadingLinks ? '読込中...' : '更新'}
+            </button>
+          </div>
+          
+          {loadingLinks ? (
+            <p className="text-center py-4 text-gray-500">データを読み込み中...</p>
+          ) : savedLinks.length === 0 ? (
+            <p className="text-center py-4 text-gray-500">保存されたリンクがありません</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">アフィリエイトURL</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">作成日時</th>
+                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {savedLinks.map((link) => (
+                    <tr key={link.id}>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{link.id}</td>
+                      <td className="px-3 py-4 text-sm text-gray-500 max-w-xs truncate">{link.affiliate_url}</td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(link.created_at).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-4 whitespace-nowrap text-sm">
+                        <div className="flex space-x-2">
+                          <a
+                            href={`/${link.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            テスト
+                          </a>
+                          <button
+                            onClick={() => handleDelete(link.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
