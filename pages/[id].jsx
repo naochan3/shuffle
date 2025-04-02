@@ -16,24 +16,57 @@ export default function RedirectPage({ link, error }) {
       return;
     }
 
-    // ピクセルコードの読み込み（トラッキング）
-    if (link.pixel_code) {
+    // TikTok ピクセルコードの設定（埋め込み）
+    if (link.pixel_id) {
       try {
-        const pixelScript = document.createElement('div');
-        pixelScript.innerHTML = link.pixel_code;
-        document.head.appendChild(pixelScript);
+        // TikTok Pixel Base Code
+        !function (w, d, t) {
+          w.TiktokOnEvent = function() {
+            var arg = Array.prototype.slice.call(arguments);
+            (w.ttq || (w.ttq = [])).push(arg);
+          };
+          var s = d.createElement(t);
+          s.async = true;
+          s.src = 'https://analytics.tiktok.com/i18n/pixel/events.js';
+          var n = d.getElementsByTagName(t)[0];
+          n.parentNode.insertBefore(s, n);
+        }(window, document, 'script');
+
+        // ピクセルIDを設定
+        window.ttq = window.ttq || [];
+        window.ttq.push(['init', link.pixel_id]);
+
+        // Purchase イベント（価格情報がある場合）
+        if (link.value) {
+          window.ttq.push([
+            'track',
+            'Purchase',
+            {
+              content_type: 'product',
+              content_id: link.id,
+              content_name: link.id,
+              quantity: 1,
+              price: link.value,
+              value: link.value,
+              currency: 'JPY',
+            },
+          ]);
+        } else {
+          // 価格情報がない場合は ClickButton イベント
+          window.ttq.push(['track', 'ClickButton']);
+        }
         
         // トラッキングコードが実行される時間を少し待ってからリダイレクト
         setTimeout(() => {
           window.location.href = link.affiliate_url;
-        }, 300);
+        }, 500);
       } catch (err) {
         console.error('ピクセルコード実行エラー:', err);
         // エラーが発生しても最終的にはリダイレクト
         window.location.href = link.affiliate_url;
       }
     } else {
-      // ピクセルコードがない場合は直接リダイレクト
+      // ピクセルIDがない場合は直接リダイレクト
       window.location.href = link.affiliate_url;
     }
   }, [router, link, error]);
