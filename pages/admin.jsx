@@ -3,21 +3,8 @@ import Head from 'next/head';
 import Link from 'next/link';
 import supabase from '../lib/supabase';
 
-// TikTok Pixelコードのデフォルトテンプレート
-const DEFAULT_PIXEL_CODE = `<!-- TikTok Pixel Code Start -->
-<script>
-!function (w, d, t) {
-  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script")
-;n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
-
-
-  ttq.load('あなたのPixelIDをここに入力');
-  ttq.page();
-  // 以下のトラッキングコードはリダイレクト時に自動で発火します
-  // ttq.track('ClickButton');
-}(window, document, 'ttq');
-</script>
-<!-- TikTok Pixel Code End -->`;
+// TikTok Pixelコードのデフォルト値
+const DEFAULT_PIXEL_CODE = ``;
 
 export default function Admin() {
   const [pixelCode, setPixelCode] = useState(DEFAULT_PIXEL_CODE);
@@ -163,11 +150,6 @@ export default function Admin() {
     setShowPixelModal(true);
   };
 
-  // テンプレートガイドの表示切替
-  const toggleTemplateGuide = () => {
-    setShowTemplate(!showTemplate);
-  };
-
   // ピクセルコードのプレビュー
   const PixelPreviewModal = () => {
     if (!showPixelModal || !selectedLink) return null;
@@ -241,6 +223,51 @@ export default function Admin() {
               ) : (
                 <p className="text-red-600">✗ ttq.load()が見つかりません - ピクセルIDが正しく設定されていない可能性があります</p>
               )}
+              
+              {!selectedLink.pixel_code.includes('event=complete payment') && !selectedLink.pixel_code.includes('event=CompletePayment') && !selectedLink.pixel_code.includes('ttq.track(\'CompletePayment\'') ? (
+                <div className="mt-2">
+                  <p className="text-yellow-600">⚠ CompletePaymentイベントが含まれていません - TikTok商品リンクとして使用するには必要です</p>
+                  <button
+                    onClick={() => {
+                      const updatedCode = selectedLink.pixel_code.includes('ttq.track(') 
+                        ? selectedLink.pixel_code.replace(/ttq\.track\(['"]\w+['"]/g, 'ttq.track(\'CompletePayment\'')
+                        : selectedLink.pixel_code.replace('ttq.page();', 'ttq.page();\n  ttq.track(\'CompletePayment\');');
+                      
+                      // ピクセルコードを更新
+                      supabase
+                        .from('affiliate_links')
+                        .update({ pixel_code: updatedCode })
+                        .eq('id', selectedLink.id)
+                        .then(({ error }) => {
+                          if (error) {
+                            alert('ピクセルコードの更新に失敗しました: ' + error.message);
+                          } else {
+                            // 更新後の最新データを取得して表示
+                            supabase
+                              .from('affiliate_links')
+                              .select('*')
+                              .eq('id', selectedLink.id)
+                              .single()
+                              .then(({ data, error }) => {
+                                if (error) {
+                                  alert('更新データの取得に失敗しました');
+                                } else if (data) {
+                                  setSelectedLink(data);
+                                  loadSavedLinks(); // リスト更新
+                                  alert('CompletePaymentイベントを追加しました！');
+                                }
+                              });
+                          }
+                        });
+                    }}
+                    className="mt-1 text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded"
+                  >
+                    CompletePaymentイベントを追加
+                  </button>
+                </div>
+              ) : (
+                <p className="text-green-600">✓ CompletePaymentイベントが含まれています - TikTok商品リンクとして使用できます</p>
+              )}
             </div>
           </div>
 
@@ -253,33 +280,6 @@ export default function Admin() {
             </button>
           </div>
         </div>
-      </div>
-    );
-  };
-
-  // TikTok Pixelテンプレートガイド
-  const TemplateGuide = () => {
-    if (!showTemplate) return null;
-
-    return (
-      <div className="bg-blue-50 border border-blue-200 p-4 rounded-md mb-4">
-        <h3 className="text-lg font-semibold mb-2">TikTok Pixelコードの設定方法</h3>
-        <p className="mb-2">
-          以下のテンプレートにあなたのTikTok PixelIDを挿入してください。<br />
-          「ttq.load('<strong>あなたのPixelIDをここに入力</strong>')」の部分をあなたの実際のPixel IDに置き換えてください。
-        </p>
-        <p className="mb-2">
-          TikTok広告管理画面からPixelコードをコピーして貼り付けることもできます。その場合は、テンプレート全体を置き換えてください。
-        </p>
-        <p className="mb-2">
-          TikTok Pixelを設定していない場合は、<a href="https://ads.tiktok.com/help/article/understanding-and-installing-the-tiktok-pixel" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">TikTokのガイド</a>を参照してください。
-        </p>
-        <button
-          onClick={toggleTemplateGuide}
-          className="text-sm px-3 py-1 mt-2 bg-blue-100 hover:bg-blue-200 rounded"
-        >
-          閉じる
-        </button>
       </div>
     );
   };
@@ -313,19 +313,6 @@ export default function Admin() {
         <div className="bg-white p-6 rounded-lg shadow-md max-w-2xl mx-auto mb-8">
           <h2 className="text-xl font-semibold mb-4">新規リンク作成</h2>
           
-          {!showTemplate && (
-            <div className="mb-4">
-              <button
-                onClick={toggleTemplateGuide}
-                className="text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded"
-              >
-                TikTok Pixelコードの設定ガイドを表示
-              </button>
-            </div>
-          )}
-          
-          <TemplateGuide />
-          
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
               <label htmlFor="pixelCode" className="block text-sm font-medium text-gray-700 mb-1">
@@ -339,6 +326,15 @@ export default function Admin() {
                 onChange={(e) => setPixelCode(e.target.value)}
                 placeholder="&lt;script&gt;...&lt;/script&gt;"
               />
+              <div className="mt-2 text-sm text-gray-600">
+                <p className="font-medium">TikTok商品リンクとして使用するためのヒント:</p>
+                <ul className="list-disc pl-5 mt-1 space-y-1">
+                  <li>TikTok広告管理画面からPixelコードをコピーして貼り付けてください</li>
+                  <li>イベント 'CompletePayment' が含まれていることを確認してください</li>
+                  <li>TikTokの商品リンクとして使用するには、ピクセルに「event=complete payment」が必要です</li>
+                  <li>作成後、ピクセル確認から必要に応じてCompletePaymentイベントを追加できます</li>
+                </ul>
+              </div>
             </div>
 
             <div className="mb-4">
@@ -452,14 +448,6 @@ export default function Admin() {
                       </td>
                       <td className="px-3 py-4 whitespace-nowrap text-sm">
                         <div className="flex space-x-2">
-                          <a
-                            href={`/${link.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            テスト
-                          </a>
                           <button
                             onClick={() => copyToClipboard(`${window.location.origin}/${link.id}`, '短縮URLをコピーしました！')}
                             className="text-green-600 hover:text-green-900"
