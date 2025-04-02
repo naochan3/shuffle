@@ -11,74 +11,60 @@ export default function RedirectPage({ link, error: serverError }) {
   const [finished, setFinished] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [error, setError] = useState(serverError);
+  const [isReady, setIsReady] = useState(false);
+
+  // routerが準備できたかどうかを確認
+  useEffect(() => {
+    if (router.isReady) {
+      setIsReady(true);
+    }
+  }, [router.isReady]);
 
   useEffect(() => {
-    // データが読み込まれるまでは何もしない
-    if (router.isFallback) return;
+    // routerやデータが読み込まれるまでは何もしない
+    if (!isReady) return;
 
-    // エラーがある場合は404ページに遷移
+    // エラーがある場合は処理を中止
     if (serverError) {
-      router.push('/404');
+      setHasError(true);
+      setError(serverError);
+      setLoading(false);
       return;
     }
 
     // SSRで取得したlinkデータがある場合はそれを使用
     if (link && link.affiliate_url) {
-      processWithLink(link);
+      try {
+        processWithLink(link);
+      } catch (err) {
+        console.error('リンク処理中のエラー:', err);
+        setHasError(true);
+        setError('リンク処理中にエラーが発生しました');
+        setLoading(false);
+      }
       return;
     }
 
     // CSRでデータを取得する必要がある場合
-    async function loadAndRedirect() {
-      setLoading(true);
-      
-      try {
-        // idをrouterから取得
-        const { id } = router.query;
-        
-        // idが取得できるまで待機
-        if (!id) return;
-        
-        // Supabaseからリダイレクト先URLとピクセルコードを取得
-        const { data, error: fetchError } = await supabase
-          .from('affiliate_links')
-          .select('affiliate_url, pixel_code')
-          .eq('id', id)
-          .single();
-        
-        if (fetchError) {
-          console.error('Error fetching data:', fetchError);
-          setError('リンクが見つかりませんでした。');
-          setHasError(true);
-          setLoading(false);
-          return;
-        }
-        
-        if (!data || !data.affiliate_url) {
-          setError('リダイレクト先URLが設定されていません。');
-          setHasError(true);
-          setLoading(false);
-          return;
-        }
-        
-        // 取得したデータでリダイレクト処理
-        processWithLink(data);
-        
-      } catch (err) {
-        console.error('Unexpected error:', err);
-        setError('予期しないエラーが発生しました。');
+    loadAndRedirect();
+  }, [isReady, serverError, link, router.query]);
+
+  // リンクデータを使用してイベント処理とリダイレクトを行う関数
+  const processWithLink = async (linkData) => {
+    try {
+      if (!linkData || !linkData.affiliate_url) {
         setHasError(true);
+        setError('リダイレクト先URLが設定されていません');
         setLoading(false);
+        return;
       }
-    }
-    
-    // リンクデータを使用してイベント処理とリダイレクトを行う関数
-    async function processWithLink(linkData) {
+
       const sleep = (time) => new Promise((resolve) => setTimeout(resolve, time));
       
       // ピクセルコードをBodyに挿入して確実に発火させる
       if (linkData.pixel_code) {
         try {
+          // コンポーネントがアンマウントされていないか確認
           const pixelContainer = document.createElement('div');
           pixelContainer.style.display = 'none';
           pixelContainer.innerHTML = linkData.pixel_code;
@@ -91,7 +77,7 @@ export default function RedirectPage({ link, error: serverError }) {
           setSending(true);
           
           // TikTokピクセルのイベントを発火
-          if (window.ttq) {
+          if (typeof window !== 'undefined' && window.ttq) {
             console.log('TikTok Pixel found, sending CompletePayment event...');
             try {
               window.ttq.track('CompletePayment');
@@ -99,35 +85,93 @@ export default function RedirectPage({ link, error: serverError }) {
               setFinished(true);
             } catch (err) {
               console.error('Error sending CompletePayment event:', err);
-              setHasError(true);
+              // エラーがあってもリダイレクトは継続
             }
           } else {
             console.warn('TikTok Pixel (ttq) object not found');
-            setHasError(true);
           }
         } catch (pixelError) {
           console.error('Error inserting pixel code:', pixelError);
-          setHasError(true);
+          // ピクセルコードの問題があってもリダイレクトは継続
         }
       }
       
       // 最終的にリダイレクト（少し待機してからリダイレクト）
-      await sleep(2000);
-      window.location.href = linkData.affiliate_url;
+      await sleep(1000);
+      
+      // リダイレクト実行
+      if (typeof window !== 'undefined' && linkData.affiliate_url) {
+        window.location.href = linkData.affiliate_url;
+      } else {
+        setHasError(true);
+        setError('リダイレクト先URLが無効です');
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('リンク処理中の予期しないエラー:', err);
+      setHasError(true);
+      setError('予期しないエラーが発生しました');
+      setLoading(false);
     }
-    
-    loadAndRedirect();
-  }, [router, serverError, link]);
+  };
+
+  // CSRでデータを取得する関数
+  const loadAndRedirect = async () => {
+    try {
+      setLoading(true);
+      
+      // idをrouterから取得
+      const { id } = router.query;
+      
+      // idが取得できない場合は処理を中止
+      if (!id) {
+        setHasError(true);
+        setError('URLパラメータが不正です');
+        setLoading(false);
+        return;
+      }
+      
+      // Supabaseからリダイレクト先URLとピクセルコードを取得
+      const { data, error: fetchError } = await supabase
+        .from('affiliate_links')
+        .select('affiliate_url, pixel_code')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) {
+        console.error('Error fetching data:', fetchError);
+        setError('リンクが見つかりませんでした');
+        setHasError(true);
+        setLoading(false);
+        return;
+      }
+      
+      if (!data || !data.affiliate_url) {
+        setError('リダイレクト先URLが設定されていません');
+        setHasError(true);
+        setLoading(false);
+        return;
+      }
+      
+      // 取得したデータでリダイレクト処理
+      processWithLink(data);
+    } catch (err) {
+      console.error('データ取得中の予期しないエラー:', err);
+      setError('予期しないエラーが発生しました');
+      setHasError(true);
+      setLoading(false);
+    }
+  };
 
   return (
     <>
       <Head>
         <title>リダイレクト中...</title>
         <meta name="robots" content="noindex" />
-        {/* pixel_codeをheadに挿入 */}
-        {link && link.pixel_code && (
+        {/* pixel_codeをheadに挿入 (条件付きでレンダリング) */}
+        {link && link.pixel_code ? (
           <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
-        )}
+        ) : null}
       </Head>
 
       <div style={{ 
@@ -141,18 +185,20 @@ export default function RedirectPage({ link, error: serverError }) {
       }}>
         <div style={{ textAlign: 'center' }}>
           <div>
-            <div style={{ display: loading ? 'block' : 'none' }}>
-              LOADING PIXEL TAG...
-            </div>
-            <div style={{ display: sending ? 'block' : 'none', marginTop: '10px' }}>
-              SENDING EVENT...
-            </div>
-            <div style={{ display: finished ? 'block' : 'none', marginTop: '10px', color: 'green' }}>
-              FINISHED
-            </div>
-            <div style={{ display: hasError ? 'block' : 'none', marginTop: '10px', color: 'red' }}>
-              {error || 'ERROR'}
-            </div>
+            {loading && (
+              <div>LOADING PIXEL TAG...</div>
+            )}
+            {sending && (
+              <div style={{ marginTop: '10px' }}>SENDING EVENT...</div>
+            )}
+            {finished && (
+              <div style={{ marginTop: '10px', color: 'green' }}>FINISHED</div>
+            )}
+            {hasError && (
+              <div style={{ marginTop: '10px', color: 'red' }}>
+                {error || 'ERROR'}
+              </div>
+            )}
           </div>
           
           <div style={{ 
@@ -191,8 +237,6 @@ export async function getServerSideProps({ params }) {
   }
 
   try {
-    console.log('Supabaseからデータ取得中...');
-    
     // IDをもとにSupabaseからデータを取得
     const { data, error } = await supabase
       .from('affiliate_links')
@@ -211,7 +255,6 @@ export async function getServerSideProps({ params }) {
     }
 
     if (!data) {
-      console.log('データが見つかりません。ID:', id);
       return {
         props: {
           error: 'ページが見つかりません',
@@ -219,8 +262,6 @@ export async function getServerSideProps({ params }) {
         }
       };
     }
-
-    console.log('データ取得成功:', data.id);
     
     return {
       props: {
