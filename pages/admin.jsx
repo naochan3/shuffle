@@ -19,6 +19,7 @@ export default function Admin() {
   const [selectedLink, setSelectedLink] = useState(null);
   const [showPixelModal, setShowPixelModal] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
+  const [addCompletePayment, setAddCompletePayment] = useState(true);
 
   // Supabase接続確認
   useEffect(() => {
@@ -76,13 +77,29 @@ export default function Admin() {
     }
 
     try {
+      // CompletePaymentイベントを自動的に追加（オプションが有効な場合）
+      let processedPixelCode = pixelCode;
+      if (addCompletePayment && !pixelCode.includes('ttq.track(\'CompletePayment\'') && 
+          !pixelCode.includes('"CompletePayment"') && 
+          !pixelCode.includes('event=complete payment') && 
+          !pixelCode.includes('event=CompletePayment')) {
+        
+        if (pixelCode.includes('ttq.track(')) {
+          // 既存のトラックイベントを置き換え
+          processedPixelCode = pixelCode.replace(/ttq\.track\(['"]\w+['"]/g, 'ttq.track(\'CompletePayment\'');
+        } else if (pixelCode.includes('ttq.page();')) {
+          // page()の後にCompletePaymentを追加
+          processedPixelCode = pixelCode.replace('ttq.page();', 'ttq.page();\n  ttq.track(\'CompletePayment\');');
+        }
+      }
+
       // Supabaseにデータを保存
       const { data, error } = await supabase
         .from('affiliate_links')
         .upsert({
           id: shortId,
           affiliate_url: affiliateUrl,
-          pixel_code: pixelCode,
+          pixel_code: processedPixelCode,
           created_at: new Date().toISOString()
         });
 
@@ -334,6 +351,18 @@ export default function Admin() {
                   <li>TikTokの商品リンクとして使用するには、ピクセルに「event=complete payment」が必要です</li>
                   <li>作成後、ピクセル確認から必要に応じてCompletePaymentイベントを追加できます</li>
                 </ul>
+              </div>
+              <div className="mt-3 flex items-center">
+                <input
+                  type="checkbox"
+                  id="addCompletePayment"
+                  checked={addCompletePayment}
+                  onChange={(e) => setAddCompletePayment(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="addCompletePayment" className="ml-2 block text-sm text-gray-700">
+                  CompletePaymentイベントを自動的に追加する
+                </label>
               </div>
             </div>
 

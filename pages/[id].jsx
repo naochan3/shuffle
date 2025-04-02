@@ -4,7 +4,7 @@ import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
-export default function RedirectPage({ link, error: serverError }) {
+export default function RedirectPage({ link, meta, error: serverError }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -100,7 +100,7 @@ export default function RedirectPage({ link, error: serverError }) {
             await new Promise(resolve => setTimeout(resolve, 500));
           }
           
-          // リダイレクト実行
+          // リダイレクト実行 - すぐにリダイレクト
           performRedirect(link.affiliate_url);
         } else {
           // CSRでデータを取得
@@ -166,8 +166,22 @@ export default function RedirectPage({ link, error: serverError }) {
   return (
     <>
       <Head>
-        <title>リダイレクト中...</title>
+        <title>{meta?.title || '商品ページへリダイレクト中...'}</title>
+        <meta name="description" content={meta?.description || 'こちらの商品ページにリダイレクトします。少々お待ちください。'} />
         <meta name="robots" content="noindex" />
+        
+        {/* OGP設定 - SNSでの表示用 */}
+        <meta property="og:title" content={meta?.title || '商品ページへ移動中...'} />
+        <meta property="og:description" content={meta?.description || 'こちらの商品ページにリダイレクトします。少々お待ちください。'} />
+        <meta property="og:type" content="website" />
+        {meta?.image && <meta property="og:image" content={meta.image} />}
+        
+        {/* Twitter Card設定 */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={meta?.title || '商品ページへ移動中...'} />
+        <meta name="twitter:description" content={meta?.description || 'こちらの商品ページにリダイレクトします。少々お待ちください。'} />
+        {meta?.image && <meta name="twitter:image" content={meta.image} />}
+        
         {/* スクリプトタグは直接挿入せず、useEffectで処理します */}
       </Head>
 
@@ -180,31 +194,54 @@ export default function RedirectPage({ link, error: serverError }) {
         backgroundColor: '#f7fafc',
         fontFamily: 'Arial, sans-serif'
       }}>
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          {meta?.image && (
+            <div style={{ margin: '0 auto 20px', maxWidth: '300px' }}>
+              <img 
+                src={meta.image} 
+                alt={meta.title || '商品画像'} 
+                style={{ 
+                  width: '100%', 
+                  height: 'auto', 
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                }} 
+              />
+            </div>
+          )}
+          
+          <h1 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: 'bold',
+            margin: '0 0 10px',
+            color: '#333'
+          }}>
+            {meta?.title || '商品ページへ移動中...'}
+          </h1>
+          
+          {meta?.description && (
+            <p style={{ 
+              fontSize: '1rem',
+              color: '#666',
+              margin: '0 0 20px'
+            }}>
+              {meta.description}
+            </p>
+          )}
+          
           <div>
             {loading && (
-              <div>LOADING PIXEL TAG...</div>
-            )}
-            {sending && (
-              <div style={{ marginTop: '10px' }}>SENDING EVENT...</div>
-            )}
-            {finished && (
-              <div style={{ marginTop: '10px', color: 'green' }}>FINISHED</div>
-            )}
-            {hasError && (
-              <div style={{ marginTop: '10px', color: 'red' }}>
-                {error || 'ERROR'}
-              </div>
+              <div style={{ color: '#666', fontSize: '0.875rem' }}>ページ移動の準備中...</div>
             )}
           </div>
           
           <div style={{ 
-            width: '50px', 
-            height: '50px', 
-            border: '5px solid #f3f3f3',
-            borderTop: '5px solid #3498db', 
+            width: '40px', 
+            height: '40px', 
+            border: '3px solid #f3f3f3',
+            borderTop: '3px solid #3498db', 
             borderRadius: '50%',
-            margin: '20px auto',
+            margin: '15px auto',
             animation: 'spin 1s linear infinite'
           }}></div>
           
@@ -229,6 +266,7 @@ export async function getServerSideProps({ params }) {
       props: {
         error: 'IDが指定されていません',
         link: null,
+        meta: null
       }
     };
   }
@@ -246,7 +284,8 @@ export async function getServerSideProps({ params }) {
       return {
         props: {
           error: `データ取得エラー: ${error.message}`,
-          link: null
+          link: null,
+          meta: null
         }
       };
     }
@@ -255,14 +294,65 @@ export async function getServerSideProps({ params }) {
       return {
         props: {
           error: 'ページが見つかりません',
-          link: null
+          link: null,
+          meta: null
         }
       };
+    }
+    
+    // アフィリエイトURLからメタデータを取得する
+    let meta = null;
+    
+    try {
+      // Node-fetchを使用してURLの内容を取得
+      const fetch = require('node-fetch');
+      const response = await fetch(data.affiliate_url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        timeout: 5000 // 5秒でタイムアウト
+      });
+      
+      if (response.ok) {
+        const html = await response.text();
+        
+        // メタタグからタイトルと説明を抽出
+        const getMetaContent = (html, name) => {
+          const metaMatch = html.match(new RegExp(`<meta\\s+(name|property)=["']${name}["']\\s+content=["']([^"']+)["']`, 'i')) 
+                        || html.match(new RegExp(`<meta\\s+content=["']([^"']+)["']\\s+(name|property)=["']${name}["']`, 'i'));
+          return metaMatch ? metaMatch[2] || metaMatch[1] : null;
+        };
+        
+        // タイトルの取得 (OGPやtitleタグから)
+        let title = getMetaContent(html, 'og:title');
+        if (!title) {
+          const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+          title = titleMatch ? titleMatch[1] : null;
+        }
+        
+        // 説明の取得
+        const description = getMetaContent(html, 'og:description') || 
+                            getMetaContent(html, 'description');
+        
+        // 画像の取得
+        const image = getMetaContent(html, 'og:image');
+        
+        meta = {
+          title: title || null,
+          description: description || null,
+          image: image || null
+        };
+      }
+    } catch (metaError) {
+      console.error('メタデータ取得エラー:', metaError);
+      // メタデータ取得エラーは無視してデフォルト表示にする
     }
     
     return {
       props: {
         link: data,
+        meta: meta || null,
         error: null
       }
     };
@@ -272,7 +362,8 @@ export async function getServerSideProps({ params }) {
     return {
       props: {
         error: `予期しないエラー: ${error.message || '不明なエラー'}`,
-        link: null
+        link: null,
+        meta: null
       }
     };
   }
