@@ -13,6 +13,8 @@ const DEFAULT_PIXEL_CODE = `<!-- TikTok Pixel Code Start -->
 
   ttq.load('あなたのPixelIDをここに入力');
   ttq.page();
+  // 以下のトラッキングコードはリダイレクト時に自動で発火します
+  // ttq.track('ClickButton');
 }(window, document, 'ttq');
 </script>
 <!-- TikTok Pixel Code End -->`;
@@ -216,7 +218,7 @@ export default function Admin() {
           <div className="mb-4">
             <p className="font-semibold mb-2">ピクセルコード解析:</p>
             <div className="bg-gray-50 p-3 rounded">
-              {selectedLink.pixel_code.includes('TikTok') ? (
+              {selectedLink.pixel_code.includes('TikTok') || selectedLink.pixel_code.includes('tiktok') || selectedLink.pixel_code.includes('ttq') ? (
                 <p className="text-green-600">✓ TikTokのピクセルコードが含まれています</p>
               ) : (
                 <p className="text-yellow-600">⚠ TikTokのピクセルコードが見つかりません</p>
@@ -228,10 +230,16 @@ export default function Admin() {
                 <p className="text-red-600">✗ scriptタグが含まれていません - 正しく動作しない可能性があります</p>
               )}
               
-              {selectedLink.pixel_code.includes('ttq.track') || selectedLink.pixel_code.includes('track(') ? (
+              {selectedLink.pixel_code.includes('ttq.track') || selectedLink.pixel_code.includes('track(') || selectedLink.pixel_code.includes('ClickButton') || selectedLink.pixel_code.includes('CompletePayment') ? (
                 <p className="text-green-600">✓ トラッキングコードが含まれています</p>
               ) : (
-                <p className="text-yellow-600">⚠ トラッキングコードが見つかりません</p>
+                <p className="text-yellow-600">⚠ トラッキングコードが見つかりません - リダイレクト時に自動的に追加されます</p>
+              )}
+
+              {selectedLink.pixel_code.includes('ttq.load') ? (
+                <p className="text-green-600">✓ ピクセルIDのロード処理が含まれています</p>
+              ) : (
+                <p className="text-red-600">✗ ttq.load()が見つかりません - ピクセルIDが正しく設定されていない可能性があります</p>
               )}
             </div>
           </div>

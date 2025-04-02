@@ -28,6 +28,19 @@ export default function RedirectPage({ link, error }) {
       // ローディング表示
       setLoading(true);
       
+      // pixel_codeをDOMに直接挿入
+      if (link.pixel_code) {
+        try {
+          // headタグへの追加に加えて、本体にも追加してイベント発火を確実にする
+          const pixelContainer = document.createElement('div');
+          pixelContainer.style.display = 'none';
+          pixelContainer.innerHTML = link.pixel_code;
+          document.body.appendChild(pixelContainer);
+        } catch (err) {
+          console.error('ピクセルコード挿入エラー:', err);
+        }
+      }
+      
       // 初期待機
       await sleep(2000);
       
@@ -37,9 +50,8 @@ export default function RedirectPage({ link, error }) {
       // ttqオブジェクトの存在確認
       if (window.ttq) {
         try {
-          // イベントを送信
+          // イベントを明示的に送信（ページ読み込み後に確実に実行）
           window.ttq.track('ClickButton');
-          
           console.log('TikTok Pixel イベント送信成功');
           setFinished(true);
         } catch (err) {
