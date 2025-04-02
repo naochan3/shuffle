@@ -4,142 +4,120 @@ import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
-export default function RedirectPage({ link, error }) {
+export default function RedirectPage({ link, error: serverError }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [finished, setFinished] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(error);
+  const [error, setError] = useState(serverError);
 
   useEffect(() => {
     // データが読み込まれるまでは何もしない
     if (router.isFallback) return;
 
     // エラーがある場合は404ページに遷移
-    if (error || !link) {
+    if (serverError) {
       router.push('/404');
       return;
     }
 
-    // TikTokイベント処理とリダイレクト
-    const processEvents = async () => {
-      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, time));
-      
-      // ローディング表示
-      setLoading(true);
-      
-      // pixel_codeをDOMに直接挿入
-      if (link.pixel_code) {
-        try {
-          // headタグへの追加に加えて、本体にも追加してイベント発火を確実にする
-          const pixelContainer = document.createElement('div');
-          pixelContainer.style.display = 'none';
-          pixelContainer.innerHTML = link.pixel_code;
-          document.body.appendChild(pixelContainer);
-        } catch (err) {
-          console.error('ピクセルコード挿入エラー:', err);
-        }
-      }
-      
-      // 初期待機
-      await sleep(2000);
-      
-      // イベント送信中の表示
-      setSending(true);
-      
-      // ttqオブジェクトの存在確認
-      if (window.ttq) {
-        try {
-          // イベントを明示的に送信（ページ読み込み後に確実に実行）
-          window.ttq.track('ClickButton');
-          console.log('TikTok Pixel イベント送信成功');
-          setFinished(true);
-        } catch (err) {
-          console.error('TikTok Pixel イベント送信エラー:', err);
-          setHasError(true);
-        }
-      } else {
-        console.error('TikTok Pixel (ttq) が見つかりません');
-        setHasError(true);
-      }
-      
-      // さらに待機してリダイレクト
-      await sleep(2000);
-      window.location.href = link.affiliate_url;
-    };
-    
-    // イベント処理を開始
-    processEvents();
-  }, [router, link, error]);
+    // SSRで取得したlinkデータがある場合はそれを使用
+    if (link && link.affiliate_url) {
+      processWithLink(link);
+      return;
+    }
 
-  useEffect(() => {
+    // CSRでデータを取得する必要がある場合
     async function loadAndRedirect() {
       setLoading(true);
       
       try {
+        // idをrouterから取得
+        const { id } = router.query;
+        
+        // idが取得できるまで待機
+        if (!id) return;
+        
         // Supabaseからリダイレクト先URLとピクセルコードを取得
-        const { data, error } = await supabase
+        const { data, error: fetchError } = await supabase
           .from('affiliate_links')
           .select('affiliate_url, pixel_code')
           .eq('id', id)
           .single();
         
-        if (error) {
-          console.error('Error fetching data:', error);
-          setErrorMessage('リンクが見つかりませんでした。');
+        if (fetchError) {
+          console.error('Error fetching data:', fetchError);
+          setError('リンクが見つかりませんでした。');
+          setHasError(true);
+          setLoading(false);
           return;
         }
         
         if (!data || !data.affiliate_url) {
-          setErrorMessage('リダイレクト先URLが設定されていません。');
+          setError('リダイレクト先URLが設定されていません。');
+          setHasError(true);
+          setLoading(false);
           return;
         }
         
-        // ピクセルコードをHeadに挿入
-        if (data.pixel_code) {
-          try {
-            // ピクセルコードをBodyにも挿入して確実に発火させる
-            const pixelContainer = document.createElement('div');
-            pixelContainer.style.display = 'none';
-            pixelContainer.innerHTML = data.pixel_code;
-            document.body.appendChild(pixelContainer);
-            
-            // 少し待機して確実にピクセルコードが読み込まれるようにする
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // CompletePaymentイベントを発火させる
-            // window.ttqオブジェクトがあるか確認してからトラッキングを実行
-            if (window.ttq) {
-              console.log('TikTok Pixel found, sending CompletePayment event...');
-              try {
-                window.ttq.track('CompletePayment');
-                console.log('CompletePayment event sent successfully');
-              } catch (err) {
-                console.error('Error sending CompletePayment event:', err);
-              }
-            } else {
-              console.warn('TikTok Pixel (ttq) object not found');
-            }
-          } catch (pixelError) {
-            console.error('Error inserting pixel code:', pixelError);
-          }
-        }
-        
-        // 最終的にリダイレクト（少し待機してからリダイレクト）
-        setTimeout(() => {
-          window.location.href = data.affiliate_url;
-        }, 1000);
+        // 取得したデータでリダイレクト処理
+        processWithLink(data);
         
       } catch (err) {
         console.error('Unexpected error:', err);
-        setErrorMessage('予期しないエラーが発生しました。');
+        setError('予期しないエラーが発生しました。');
+        setHasError(true);
         setLoading(false);
       }
     }
     
+    // リンクデータを使用してイベント処理とリダイレクトを行う関数
+    async function processWithLink(linkData) {
+      const sleep = (time) => new Promise((resolve) => setTimeout(resolve, time));
+      
+      // ピクセルコードをBodyに挿入して確実に発火させる
+      if (linkData.pixel_code) {
+        try {
+          const pixelContainer = document.createElement('div');
+          pixelContainer.style.display = 'none';
+          pixelContainer.innerHTML = linkData.pixel_code;
+          document.body.appendChild(pixelContainer);
+          
+          // 少し待機して確実にピクセルコードが読み込まれるようにする
+          await sleep(500);
+          
+          // イベント送信中の表示
+          setSending(true);
+          
+          // TikTokピクセルのイベントを発火
+          if (window.ttq) {
+            console.log('TikTok Pixel found, sending CompletePayment event...');
+            try {
+              window.ttq.track('CompletePayment');
+              console.log('CompletePayment event sent successfully');
+              setFinished(true);
+            } catch (err) {
+              console.error('Error sending CompletePayment event:', err);
+              setHasError(true);
+            }
+          } else {
+            console.warn('TikTok Pixel (ttq) object not found');
+            setHasError(true);
+          }
+        } catch (pixelError) {
+          console.error('Error inserting pixel code:', pixelError);
+          setHasError(true);
+        }
+      }
+      
+      // 最終的にリダイレクト（少し待機してからリダイレクト）
+      await sleep(2000);
+      window.location.href = linkData.affiliate_url;
+    }
+    
     loadAndRedirect();
-  }, [id, supabase]);
+  }, [router, serverError, link]);
 
   return (
     <>
@@ -173,7 +151,7 @@ export default function RedirectPage({ link, error }) {
               FINISHED
             </div>
             <div style={{ display: hasError ? 'block' : 'none', marginTop: '10px', color: 'red' }}>
-              ERROR
+              {error || 'ERROR'}
             </div>
           </div>
           
