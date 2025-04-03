@@ -20,6 +20,13 @@ export default function Admin() {
   const [showPixelModal, setShowPixelModal] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
   const [addCompletePayment, setAddCompletePayment] = useState(true);
+  
+  // リンク一覧関連の状態を追加
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Supabase接続確認
   useEffect(() => {
@@ -50,7 +57,7 @@ export default function Admin() {
       const { data, error } = await supabase
         .from('affiliate_links')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order(sortField, { ascending: sortDirection === 'asc' });
       
       if (error) {
         console.error('データ取得エラー:', error);
@@ -63,6 +70,37 @@ export default function Admin() {
       setLoadingLinks(false);
     }
   };
+
+  // ソート状態が変更されたら再読み込み
+  useEffect(() => {
+    loadSavedLinks();
+  }, [sortField, sortDirection]);
+
+  // ソート関数
+  const handleSort = (field) => {
+    if (field === sortField) {
+      // 同じフィールドがクリックされた場合、ソート方向を反転
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // 新しいフィールドがクリックされた場合、そのフィールドでソート
+      setSortField(field);
+      setSortDirection('desc'); // デフォルトは降順
+    }
+  };
+
+  // 検索に一致するリンクをフィルタリング
+  const filteredLinks = searchQuery
+    ? savedLinks.filter((link) => link.id.toLowerCase().includes(searchQuery.toLowerCase()))
+    : savedLinks;
+
+  // ページネーション用のデータ
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredLinks.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredLinks.length / itemsPerPage);
+
+  // ページ変更ハンドラ
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   // ランダムな文字列を生成する関数
   const generateRandomString = (length = 6) => {
@@ -465,68 +503,201 @@ export default function Admin() {
             </button>
           </div>
           
+          {/* 検索フィールド */}
+          <div className="mb-4">
+            <div className="flex items-center">
+              <div className="relative flex-grow">
+                <input
+                  type="text"
+                  placeholder="IDで検索..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // 検索時は1ページ目に戻る
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+            {searchQuery && (
+              <p className="mt-2 text-sm text-gray-600">
+                「{searchQuery}」の検索結果: {filteredLinks.length}件
+              </p>
+            )}
+          </div>
+          
           {loadingLinks ? (
             <p className="text-center py-4 text-gray-500">データを読み込み中...</p>
           ) : savedLinks.length === 0 ? (
             <p className="text-center py-4 text-gray-500">保存されたリンクがありません</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">アフィリエイトURL</th>
-                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">作成日時</th>
-                    <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {savedLinks.map((link) => (
-                    <tr key={link.id}>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{link.id}</td>
-                      <td className="px-3 py-4 text-sm text-gray-500">
-                        <div className="max-w-xs truncate">
-                          {link.affiliate_url}
+            <div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th 
+                        onClick={() => handleSort('id')}
+                        scope="col" 
+                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      >
+                        <div className="flex items-center">
+                          ID
+                          {sortField === 'id' && (
+                            <svg className="ml-1 h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                              {sortDirection === 'asc' ? (
+                                <path d="M3.5 9.5l4.5-5 4.5 5h-9z" />
+                              ) : (
+                                <path d="M3.5 6.5l4.5 5 4.5-5h-9z" />
+                              )}
+                            </svg>
+                          )}
                         </div>
-                      </td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(link.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-3 py-4 whitespace-nowrap text-sm">
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => copyToClipboard(`${window.location.origin}/${link.id}`, '短縮URLをコピーしました！')}
-                            className="text-green-600 hover:text-green-900"
-                            title="短縮URLをコピー"
-                          >
-                            URLコピー
-                          </button>
-                          <button
-                            onClick={() => copyToClipboard(link.affiliate_url, 'アフィリエイトURLをコピーしました！')}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="元のURLをコピー"
-                          >
-                            元URLコピー
-                          </button>
-                          <button
-                            onClick={() => openPixelModal(link)}
-                            className="text-orange-600 hover:text-orange-900"
-                            title="ピクセルコードを確認"
-                          >
-                            ピクセル確認
-                          </button>
-                          <button
-                            onClick={() => handleDelete(link.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            削除
-                          </button>
+                      </th>
+                      <th 
+                        onClick={() => handleSort('affiliate_url')}
+                        scope="col" 
+                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      >
+                        <div className="flex items-center">
+                          アフィリエイトURL
+                          {sortField === 'affiliate_url' && (
+                            <svg className="ml-1 h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                              {sortDirection === 'asc' ? (
+                                <path d="M3.5 9.5l4.5-5 4.5 5h-9z" />
+                              ) : (
+                                <path d="M3.5 6.5l4.5 5 4.5-5h-9z" />
+                              )}
+                            </svg>
+                          )}
                         </div>
-                      </td>
+                      </th>
+                      <th 
+                        onClick={() => handleSort('created_at')}
+                        scope="col" 
+                        className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+                      >
+                        <div className="flex items-center">
+                          作成日時
+                          {sortField === 'created_at' && (
+                            <svg className="ml-1 h-3 w-3" viewBox="0 0 16 16" fill="currentColor">
+                              {sortDirection === 'asc' ? (
+                                <path d="M3.5 9.5l4.5-5 4.5 5h-9z" />
+                              ) : (
+                                <path d="M3.5 6.5l4.5 5 4.5-5h-9z" />
+                              )}
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {currentItems.map((link) => (
+                      <tr key={link.id}>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{link.id}</td>
+                        <td className="px-3 py-4 text-sm text-gray-500">
+                          <div className="max-w-xs truncate">
+                            {link.affiliate_url}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(link.created_at).toLocaleString()}
+                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap text-sm">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => copyToClipboard(`${window.location.origin}/${link.id}`, '短縮URLをコピーしました！')}
+                              className="text-green-600 hover:text-green-900"
+                              title="短縮URLをコピー"
+                            >
+                              URLコピー
+                            </button>
+                            <button
+                              onClick={() => copyToClipboard(link.affiliate_url, 'アフィリエイトURLをコピーしました！')}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="元のURLをコピー"
+                            >
+                              元URLコピー
+                            </button>
+                            <button
+                              onClick={() => openPixelModal(link)}
+                              className="text-orange-600 hover:text-orange-900"
+                              title="ピクセルコードを確認"
+                            >
+                              ピクセル確認
+                            </button>
+                            <button
+                              onClick={() => handleDelete(link.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              削除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* ページネーション */}
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-6">
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => paginate(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${currentPage === 1 ? 'text-gray-300' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                      <span className="sr-only">前へ</span>
+                      &laquo;
+                    </button>
+                    
+                    {/* ページ番号 */}
+                    {[...Array(totalPages).keys()].map(number => (
+                      <button
+                        key={number + 1}
+                        onClick={() => paginate(number + 1)}
+                        className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
+                          currentPage === number + 1
+                            ? 'bg-blue-50 border-blue-500 text-blue-600 z-10'
+                            : 'text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {number + 1}
+                      </button>
+                    ))}
+                    
+                    <button
+                      onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${currentPage === totalPages ? 'text-gray-300' : 'text-gray-500 hover:bg-gray-50'}`}
+                    >
+                      <span className="sr-only">次へ</span>
+                      &raquo;
+                    </button>
+                  </nav>
+                </div>
+              )}
+              
+              <div className="mt-2 text-center text-sm text-gray-500">
+                全{filteredLinks.length}件中 {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredLinks.length)}件を表示
+              </div>
             </div>
           )}
         </div>
