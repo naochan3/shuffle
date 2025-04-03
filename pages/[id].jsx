@@ -25,12 +25,16 @@ export default function RedirectPage({ link, meta, error: serverError }) {
   const insertPixelCode = (code) => {
     try {
       if (!code || typeof window === 'undefined') return;
+      
+      console.log('ピクセルコードを挿入します...');
 
       // ピクセルコードをBodyに挿入して確実に発火させる
       const pixelContainer = document.createElement('div');
       pixelContainer.style.display = 'none';
       pixelContainer.innerHTML = code;
       document.body.appendChild(pixelContainer);
+      
+      console.log('ピクセルコード挿入完了');
       setPixelLoaded(true);
     } catch (err) {
       console.error('ピクセルコード挿入エラー:', err);
@@ -44,16 +48,30 @@ export default function RedirectPage({ link, meta, error: serverError }) {
     setSending(true);
     
     try {
+      console.log('TikTokピクセルの初期化状態を確認中...');
+      
+      // ttqオブジェクトが初期化されるまで少し待機（最大5回試行）
+      let attempts = 0;
+      const maxAttempts = 5;
+      
+      while (!window.ttq && attempts < maxAttempts) {
+        console.log(`ttqオブジェクトを待機中... (${attempts + 1}/${maxAttempts})`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+      
       if (window.ttq) {
         console.log('TikTok Pixel found, sending CompletePayment event...');
         window.ttq.track('CompletePayment');
         console.log('CompletePayment event sent successfully');
         setFinished(true);
       } else {
-        console.warn('TikTok Pixel (ttq) object not found');
+        console.warn('TikTok Pixel (ttq) object not found - リダイレクトは続行します');
+        // エラーを表示せずにリダイレクトを続行
       }
     } catch (err) {
       console.error('イベント送信エラー:', err);
+      // エラーがあってもリダイレクトは続行
     }
   };
 
@@ -62,6 +80,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
     if (typeof window === 'undefined' || !url) return;
     
     try {
+      console.log(`リダイレクト実行: ${url}`);
       window.location.href = url;
     } catch (err) {
       console.error('リダイレクトエラー:', err);
@@ -85,28 +104,37 @@ export default function RedirectPage({ link, meta, error: serverError }) {
 
     const processRedirect = async () => {
       try {
+        console.log('リダイレクト処理を開始します...');
+        
         // SSRで取得したlinkデータがある場合はそれを使用
         if (link && link.affiliate_url) {
+          console.log('SSRで取得したデータを使用します');
+          
           if (link.pixel_code) {
+            console.log('ピクセルコードが見つかりました');
             insertPixelCode(link.pixel_code);
             
             // 少し待機して確実にピクセルコードが読み込まれるようにする
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             // イベント送信
             await sendEvent();
             
             // さらに少し待機してからリダイレクト
             await new Promise(resolve => setTimeout(resolve, 500));
+          } else {
+            console.log('ピクセルコードがありません');
           }
           
           // リダイレクト実行 - すぐにリダイレクト
           performRedirect(link.affiliate_url);
         } else {
+          console.log('CSRでデータを取得します');
           // CSRでデータを取得
           const { id } = router.query;
           
           if (!id) {
+            console.error('URLパラメータが不正です');
             setHasError(true);
             setError('URLパラメータが不正です');
             setLoading(false);
@@ -114,13 +142,14 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           }
           
           // Supabaseからデータ取得
+          console.log(`ID「${id}」のデータを取得中...`);
           const { data, error: fetchError } = await supabase
             .from('affiliate_links')
             .select('affiliate_url, pixel_code')
             .eq('id', id)
-            .single();
+            .maybeSingle(); // single()ではなくmaybeSingle()を使用
           
-          if (fetchError || !data) {
+          if (fetchError) {
             console.error('データ取得エラー:', fetchError);
             setHasError(true);
             setError(fetchError ? fetchError.message : 'データが見つかりません');
@@ -128,25 +157,39 @@ export default function RedirectPage({ link, meta, error: serverError }) {
             return;
           }
           
+          if (!data) {
+            console.error(`ID「${id}」に該当するリンクは見つかりません`);
+            setHasError(true);
+            setError('リンクが見つかりません');
+            setLoading(false);
+            return;
+          }
+          
           if (!data.affiliate_url) {
+            console.error('リダイレクト先URLが設定されていません');
             setHasError(true);
             setError('リダイレクト先URLが設定されていません');
             setLoading(false);
             return;
           }
           
+          console.log('リダイレクト先URL:', data.affiliate_url);
+          
           // ピクセルコードの処理
           if (data.pixel_code) {
+            console.log('ピクセルコードが見つかりました');
             insertPixelCode(data.pixel_code);
             
             // 少し待機して確実にピクセルコードが読み込まれるようにする
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
             // イベント送信
             await sendEvent();
             
             // さらに少し待機してからリダイレクト
             await new Promise(resolve => setTimeout(resolve, 500));
+          } else {
+            console.log('ピクセルコードがありません');
           }
           
           // リダイレクト実行
@@ -277,7 +320,7 @@ export async function getServerSideProps({ params }) {
       .from('affiliate_links')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Supabaseからのデータ取得エラー:', error.message);
@@ -291,9 +334,10 @@ export async function getServerSideProps({ params }) {
     }
 
     if (!data) {
+      console.log(`ID「${id}」に該当するリンクは見つかりませんでした`);
       return {
         props: {
-          error: 'ページが見つかりません',
+          error: 'リンクが見つかりません',
           link: null,
           meta: null
         }
