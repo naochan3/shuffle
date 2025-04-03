@@ -64,6 +64,16 @@ export default function Admin() {
     }
   };
 
+  // ランダムな文字列を生成する関数
+  const generateRandomString = (length = 6) => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -93,11 +103,15 @@ export default function Admin() {
         }
       }
 
+      // 短縮URL名に重複防止用のランダム文字列を追加
+      const randomSuffix = generateRandomString(4);
+      const uniqueShortId = `${shortId}-${randomSuffix}`;
+
       // Supabaseにデータを保存
       const { data, error } = await supabase
         .from('affiliate_links')
         .upsert({
-          id: shortId,
+          id: uniqueShortId,
           affiliate_url: affiliateUrl,
           pixel_code: processedPixelCode,
           created_at: new Date().toISOString()
@@ -109,7 +123,7 @@ export default function Admin() {
       }
 
       // 成功した場合、生成されたURLを表示
-      setResultUrl(`${window.location.origin}/${shortId}`);
+      setResultUrl(`${window.location.origin}/${uniqueShortId}`);
       
       // 保存済みデータを再読み込み
       loadSavedLinks();
@@ -392,6 +406,9 @@ export default function Admin() {
                 onChange={(e) => setShortId(e.target.value)}
                 placeholder="shuffle"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                入力した名前の後に自動的にランダムな文字列が追加され、「名前-xxxx」の形式になります。重複を防止するためです。
+              </p>
             </div>
 
             <button
