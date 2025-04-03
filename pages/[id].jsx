@@ -4,299 +4,98 @@ import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
-export default function RedirectPage({ link, meta, error: serverError }) {
-  const router = useRouter();
+export default function RedirectPage({ id, affiliateUrl, pixelCode }) {
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [finished, setFinished] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [error, setError] = useState(serverError);
-  const [isReady, setIsReady] = useState(false);
-  const [pixelLoaded, setPixelLoaded] = useState(false);
-
-  // routerが準備できたかどうかを確認
-  useEffect(() => {
-    if (router.isReady) {
-      setIsReady(true);
-    }
-  }, [router.isReady]);
-
-  // ピクセルコードをページに安全に挿入する関数
-  const insertPixelCode = (code) => {
-    try {
-      if (!code || typeof window === 'undefined') return;
-      
-      console.log('ピクセルコードを挿入します...');
-
-      // ピクセルコードをBodyに挿入して確実に発火させる
-      const pixelContainer = document.createElement('div');
-      pixelContainer.style.display = 'none';
-      pixelContainer.innerHTML = code;
-      document.body.appendChild(pixelContainer);
-      
-      console.log('ピクセルコード挿入完了');
-      setPixelLoaded(true);
-    } catch (err) {
-      console.error('ピクセルコード挿入エラー:', err);
-    }
-  };
-
-  // イベントを送信する関数
-  const sendEvent = async () => {
-    if (typeof window === 'undefined') return;
-    
-    setSending(true);
-    
-    try {
-      console.log('TikTokピクセルの初期化状態を確認中...');
-      
-      // ttqオブジェクトが初期化されるまで少し待機（最大5回試行）
-      let attempts = 0;
-      const maxAttempts = 5;
-      
-      while (!window.ttq && attempts < maxAttempts) {
-        console.log(`ttqオブジェクトを待機中... (${attempts + 1}/${maxAttempts})`);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        attempts++;
-      }
-      
-      if (window.ttq) {
-        console.log('TikTok Pixel found, sending CompletePayment event...');
-        window.ttq.track('CompletePayment');
-        console.log('CompletePayment event sent successfully');
-        setFinished(true);
-      } else {
-        console.warn('TikTok Pixel (ttq) object not found - リダイレクトは続行します');
-        // エラーを表示せずにリダイレクトを続行
-      }
-    } catch (err) {
-      console.error('イベント送信エラー:', err);
-      // エラーがあってもリダイレクトは続行
-    }
-  };
-
-  // リダイレクトを実行する関数
-  const performRedirect = (url) => {
-    if (typeof window === 'undefined' || !url) return;
-    
-    try {
-      console.log(`リダイレクト実行: ${url}`);
-      window.location.href = url;
-    } catch (err) {
-      console.error('リダイレクトエラー:', err);
-      setHasError(true);
-      setError('リダイレクトできませんでした');
-      setLoading(false);
-    }
-  };
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // routerやデータが読み込まれるまでは何もしない
-    if (!isReady) return;
-
-    // エラーがある場合は処理を中止
-    if (serverError) {
-      setHasError(true);
-      setError(serverError);
-      setLoading(false);
-      return;
-    }
-
-    const processRedirect = async () => {
+    const redirect = async () => {
       try {
-        console.log('リダイレクト処理を開始します...');
+        setLoading(true);
         
-        // SSRで取得したlinkデータがある場合はそれを使用
-        if (link && link.affiliate_url) {
-          console.log('SSRで取得したデータを使用します');
+        // ピクセルコードをページに挿入
+        if (pixelCode) {
+          const div = document.createElement('div');
+          div.innerHTML = pixelCode;
+          document.head.appendChild(div);
           
-          if (link.pixel_code) {
-            console.log('ピクセルコードが見つかりました');
-            insertPixelCode(link.pixel_code);
-            
-            // 少し待機して確実にピクセルコードが読み込まれるようにする
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // イベント送信
-            await sendEvent();
-            
-            // さらに少し待機してからリダイレクト
-            await new Promise(resolve => setTimeout(resolve, 500));
-          } else {
-            console.log('ピクセルコードがありません');
+          // TikTokピクセルの初期化を待機
+          let attempts = 0;
+          const maxAttempts = 6; // 3秒までの待機に短縮
+          const waitTime = 500; // 0.5秒ごとにチェック
+
+          while (attempts < maxAttempts) {
+            if (window.ttq) {
+              console.log('TikTok Pixel initialized successfully');
+              break;
+            }
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            attempts++;
           }
-          
-          // リダイレクト実行 - すぐにリダイレクト
-          performRedirect(link.affiliate_url);
+
+          if (window.ttq) {
+            try {
+              // CompletePaymentイベントを送信
+              window.ttq.track('CompletePayment', {
+                content_type: 'product_link',
+                content_id: id,
+                currency: 'JPY',
+                value: 1
+              });
+              console.log('CompletePayment event sent successfully');
+
+              // イベント送信後の待機時間を短縮（500ms）
+              await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (eventError) {
+              console.error('Error sending TikTok event:', eventError);
+              // エラー時は待機せずにリダイレクト
+            }
+          } else {
+            console.warn('TikTok Pixel not initialized after maximum attempts');
+            // 初期化失敗時は待機せずにリダイレクト
+          }
+        }
+
+        // リダイレクト実行
+        if (affiliateUrl) {
+          console.log('Redirecting to:', affiliateUrl);
+          window.location.href = affiliateUrl;
         } else {
-          console.log('CSRでデータを取得します');
-          // CSRでデータを取得
-          const { id } = router.query;
-          
-          if (!id) {
-            console.error('URLパラメータが不正です');
-            setHasError(true);
-            setError('URLパラメータが不正です');
-            setLoading(false);
-            return;
-          }
-          
-          // Supabaseからデータ取得
-          console.log(`ID「${id}」のデータを取得中...`);
-          const { data, error: fetchError } = await supabase
-            .from('affiliate_links')
-            .select('affiliate_url, pixel_code')
-            .eq('id', id)
-            .maybeSingle(); // single()ではなくmaybeSingle()を使用
-          
-          if (fetchError) {
-            console.error('データ取得エラー:', fetchError);
-            setHasError(true);
-            setError(fetchError ? fetchError.message : 'データが見つかりません');
-            setLoading(false);
-            return;
-          }
-          
-          if (!data) {
-            console.error(`ID「${id}」に該当するリンクは見つかりません`);
-            setHasError(true);
-            setError('リンクが見つかりません');
-            setLoading(false);
-            return;
-          }
-          
-          if (!data.affiliate_url) {
-            console.error('リダイレクト先URLが設定されていません');
-            setHasError(true);
-            setError('リダイレクト先URLが設定されていません');
-            setLoading(false);
-            return;
-          }
-          
-          console.log('リダイレクト先URL:', data.affiliate_url);
-          
-          // ピクセルコードの処理
-          if (data.pixel_code) {
-            console.log('ピクセルコードが見つかりました');
-            insertPixelCode(data.pixel_code);
-            
-            // 少し待機して確実にピクセルコードが読み込まれるようにする
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // イベント送信
-            await sendEvent();
-            
-            // さらに少し待機してからリダイレクト
-            await new Promise(resolve => setTimeout(resolve, 500));
-          } else {
-            console.log('ピクセルコードがありません');
-          }
-          
-          // リダイレクト実行
-          performRedirect(data.affiliate_url);
+          setError('リダイレクト先URLが設定されていません。');
+          setLoading(false);
         }
       } catch (err) {
-        console.error('処理中のエラー:', err);
-        setHasError(true);
-        setError('予期しないエラーが発生しました');
+        console.error('Redirect error:', err);
+        setError('リダイレクト処理中にエラーが発生しました。');
         setLoading(false);
       }
     };
-    
-    processRedirect();
-  }, [isReady, link, router.query, serverError]);
 
-  return (
-    <>
-      <Head>
-        <title>{meta?.title || '商品ページへリダイレクト中...'}</title>
-        <meta name="description" content={meta?.description || 'こちらの商品ページにリダイレクトします。少々お待ちください。'} />
-        <meta name="robots" content="noindex" />
-        
-        {/* OGP設定 - SNSでの表示用 */}
-        <meta property="og:title" content={meta?.title || '商品ページへ移動中...'} />
-        <meta property="og:description" content={meta?.description || 'こちらの商品ページにリダイレクトします。少々お待ちください。'} />
-        <meta property="og:type" content="website" />
-        {meta?.image && <meta property="og:image" content={meta.image} />}
-        
-        {/* Twitter Card設定 */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={meta?.title || '商品ページへ移動中...'} />
-        <meta name="twitter:description" content={meta?.description || 'こちらの商品ページにリダイレクトします。少々お待ちください。'} />
-        {meta?.image && <meta name="twitter:image" content={meta.image} />}
-        
-        {/* スクリプトタグは直接挿入せず、useEffectで処理します */}
-      </Head>
+    redirect();
+  }, [id, affiliateUrl, pixelCode]);
 
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        backgroundColor: '#f7fafc',
-        fontFamily: 'Arial, sans-serif'
-      }}>
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          {meta?.image && (
-            <div style={{ margin: '0 auto 20px', maxWidth: '300px' }}>
-              <img 
-                src={meta.image} 
-                alt={meta.title || '商品画像'} 
-                style={{ 
-                  width: '100%', 
-                  height: 'auto', 
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                }} 
-              />
-            </div>
-          )}
-          
-          <h1 style={{ 
-            fontSize: '1.5rem', 
-            fontWeight: 'bold',
-            margin: '0 0 10px',
-            color: '#333'
-          }}>
-            {meta?.title || '商品ページへ移動中...'}
-          </h1>
-          
-          {meta?.description && (
-            <p style={{ 
-              fontSize: '1rem',
-              color: '#666',
-              margin: '0 0 20px'
-            }}>
-              {meta.description}
-            </p>
-          )}
-          
-          <div>
-            {loading && (
-              <div style={{ color: '#666', fontSize: '0.875rem' }}>ページ移動の準備中...</div>
-            )}
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
+          <div className="text-red-600 text-center">
+            <h1 className="text-xl font-semibold mb-2">エラーが発生しました</h1>
+            <p>{error}</p>
           </div>
-          
-          <div style={{ 
-            width: '40px', 
-            height: '40px', 
-            border: '3px solid #f3f3f3',
-            borderTop: '3px solid #3498db', 
-            borderRadius: '50%',
-            margin: '15px auto',
-            animation: 'spin 1s linear infinite'
-          }}></div>
-          
-          <style jsx>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
         </div>
       </div>
-    </>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">リダイレクト中...</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
