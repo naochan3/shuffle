@@ -4,19 +4,33 @@ import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
-export default function RedirectPage({ id, affiliateUrl, pixelCode }) {
+export default function RedirectPage({ link, meta, error: serverError }) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(serverError);
 
   useEffect(() => {
     const redirect = async () => {
       try {
         setLoading(true);
+
+        // サーバーサイドでエラーが発生している場合は処理を中止
+        if (serverError) {
+          setError(serverError);
+          setLoading(false);
+          return;
+        }
+
+        // リンクデータが存在しない場合
+        if (!link || !link.affiliate_url) {
+          setError('リダイレクト先URLが見つかりません。');
+          setLoading(false);
+          return;
+        }
         
         // ピクセルコードをページに挿入
-        if (pixelCode) {
+        if (link.pixel_code) {
           const div = document.createElement('div');
-          div.innerHTML = pixelCode;
+          div.innerHTML = link.pixel_code;
           document.head.appendChild(div);
           
           // TikTokピクセルの初期化を待機
@@ -38,7 +52,7 @@ export default function RedirectPage({ id, affiliateUrl, pixelCode }) {
               // CompletePaymentイベントを送信
               window.ttq.track('CompletePayment', {
                 content_type: 'product_link',
-                content_id: id,
+                content_id: link.id,
                 currency: 'JPY',
                 value: 1
               });
@@ -57,13 +71,8 @@ export default function RedirectPage({ id, affiliateUrl, pixelCode }) {
         }
 
         // リダイレクト実行
-        if (affiliateUrl) {
-          console.log('Redirecting to:', affiliateUrl);
-          window.location.href = affiliateUrl;
-        } else {
-          setError('リダイレクト先URLが設定されていません。');
-          setLoading(false);
-        }
+        console.log('Redirecting to:', link.affiliate_url);
+        window.location.href = link.affiliate_url;
       } catch (err) {
         console.error('Redirect error:', err);
         setError('リダイレクト処理中にエラーが発生しました。');
@@ -72,7 +81,7 @@ export default function RedirectPage({ id, affiliateUrl, pixelCode }) {
     };
 
     redirect();
-  }, [id, affiliateUrl, pixelCode]);
+  }, [link, serverError]);
 
   if (error) {
     return (
@@ -89,10 +98,18 @@ export default function RedirectPage({ id, affiliateUrl, pixelCode }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Head>
+        <title>{meta?.title || 'リダイレクト中...'}</title>
+        <meta name="description" content={meta?.description || 'ページ移動中です。少々お待ちください。'} />
+        <meta name="robots" content="noindex" />
+      </Head>
       <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
           <p className="mt-4 text-gray-600">リダイレクト中...</p>
+          {meta?.title && (
+            <p className="mt-2 text-sm text-gray-500">{meta.title}</p>
+          )}
         </div>
       </div>
     </div>
@@ -115,7 +132,7 @@ export async function getServerSideProps({ params }) {
 
   try {
     // IDをもとにSupabaseからデータを取得
-    const { data, error } = await supabase
+    const { data: link, error } = await supabase
       .from('affiliate_links')
       .select('*')
       .eq('id', id)
@@ -132,11 +149,22 @@ export async function getServerSideProps({ params }) {
       };
     }
 
-    if (!data) {
+    if (!link) {
       console.log(`ID「${id}」に該当するリンクは見つかりませんでした`);
       return {
         props: {
           error: 'リンクが見つかりません',
+          link: null,
+          meta: null
+        }
+      };
+    }
+
+    // アフィリエイトURLが設定されていない場合
+    if (!link.affiliate_url) {
+      return {
+        props: {
+          error: 'リダイレクト先URLが設定されていません',
           link: null,
           meta: null
         }
@@ -149,7 +177,7 @@ export async function getServerSideProps({ params }) {
     try {
       // Node-fetchを使用してURLの内容を取得
       const fetch = require('node-fetch');
-      const response = await fetch(data.affiliate_url, {
+      const response = await fetch(link.affiliate_url, {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -194,7 +222,7 @@ export async function getServerSideProps({ params }) {
     
     return {
       props: {
-        link: data,
+        link,
         meta: meta || null,
         error: null
       }
