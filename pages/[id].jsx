@@ -27,16 +27,13 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           return;
         }
         
-        // ピクセルコードをページに挿入
+        // ピクセルコードの処理
         if (link.pixel_code) {
-          const div = document.createElement('div');
-          div.innerHTML = link.pixel_code;
-          document.head.appendChild(div);
-          console.log('ピクセルコード挿入完了');
+          console.log('ピクセルコード確認');
           
           // TikTokピクセルの初期化を待機
           let attempts = 0;
-          const maxAttempts = 10; // 5秒までの待機に延長
+          const maxAttempts = 10; // 5秒までの待機
           const waitTime = 500; // 0.5秒ごとにチェック
 
           while (attempts < maxAttempts) {
@@ -48,21 +45,27 @@ export default function RedirectPage({ link, meta, error: serverError }) {
             attempts++;
           }
 
+          // ttqオブジェクトが確実に初期化されているか確認
           if (window.ttq) {
             try {
-              // CompletePaymentイベントを送信（フォーマットを最適化）
-              window.ttq.track('CompletePayment', {
-                contents: [{
-                  content_id: link.id,
-                  content_type: 'product_link',
-                  content_name: 'Product Link'
-                }],
-                value: 1,
-                currency: 'JPY'
-              });
-              console.log('CompletePayment イベント送信成功');
+              // CompletePaymentイベントがピクセルコードに含まれていない場合のみ、明示的に送信
+              if (!link.pixel_code.includes('ttq.track(\'CompletePayment\'') && 
+                  !link.pixel_code.includes('event=complete payment') && 
+                  !link.pixel_code.includes('event=CompletePayment')) {
+                // CompletePaymentイベントを送信（フォーマットを最適化）
+                window.ttq.track('CompletePayment', {
+                  contents: [{
+                    content_id: link.id,
+                    content_type: 'product_link',
+                    content_name: 'Product Link'
+                  }],
+                  value: 1,
+                  currency: 'JPY'
+                });
+                console.log('追加のCompletePayment イベント送信成功');
+              }
 
-              // イベント送信後の待機時間を延長（1000ms）
+              // イベント送信後の待機時間（1000ms）
               await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (eventError) {
               console.error('イベント送信エラー:', eventError);
@@ -115,6 +118,11 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         {meta?.image && <meta property="og:image" content={meta.image} />}
         <meta property="product:price:amount" content="1000" />
         <meta property="product:price:currency" content="JPY" />
+        
+        {/* ピクセルコードを直接<head>タグ内に挿入 */}
+        {link && link.pixel_code && (
+          <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
+        )}
       </Head>
       <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
         <div className="text-center">
