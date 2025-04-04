@@ -1,0 +1,92 @@
+# TikTokピクセル最適化に関する会話ログ
+日付: 2024年4月8日
+
+## 主な実装内容
+
+1. **TikTokピクセルコードを`<head>`タグ内に直接挿入**
+   - ピクセルコードをサーバーサイドレンダリングで直接`<Head>`コンポーネント内に挿入
+   - クライアントサイドでの挿入を削除し、初期段階で確実に読み込まれるよう改善
+
+2. **CompletePaymentイベントの自動追加と最適化**
+   - ピクセルコードにCompletePaymentイベントが含まれていない場合に自動補完
+   - より詳細なパラメータ（contents配列など）を含む最適化された形式を使用
+
+3. **待機時間の最適化**
+   - TikTokピクセルの初期化待機時間: 最大15秒（30回 × 500ms）
+   - イベント発火後の待機時間: 7秒
+   - エラー時の待機時間: 2秒
+
+## 問題と解決策
+
+1. **ピクセルコードの挿入位置の問題**
+   - 問題: クライアントサイドでの挿入では確実に発火しない場合がある
+   - 解決: サーバーサイドレンダリングで`<head>`タグ内に直接挿入
+
+2. **待機時間不足の問題**
+   - 問題: 一部のアカウントではイベントが発火しない
+   - 解決: 初期化とイベント発火後の待機時間を大幅に延長
+
+3. **イベント形式の最適化**
+   - 問題: シンプルなCompletePaymentイベントでは不十分
+   - 解決: TikTokが推奨する詳細なパラメータを含む形式を使用
+
+## 今後の課題
+
+1. **初期化失敗時の対応**
+   - 初期化失敗時でも商品ページにリダイレクトするため、一部のケースでイベントが発火しない
+   - フォールバックメカニズムやユーザー通知などの対策が考えられる
+
+2. **統計情報の収集**
+   - 初期化成功率や失敗ケースの環境情報を収集・分析
+   - より効果的な対策を講じるためのデータ収集
+
+3. **さらなる最適化**
+   - パフォーマンス、セキュリティ、UI/UXの改善
+   - 多言語対応や複数ピクセル対応などの拡張機能
+
+## コード例
+
+### ピクセルコード挿入部分
+```jsx
+<Head>
+  <title>{meta?.title || 'リダイレクト中...'}</title>
+  <meta name="description" content={meta?.description || 'ページ移動中です。少々お待ちください。'} />
+  <meta name="robots" content="noindex" />
+  {/* TikTok用のページレベルメタデータを追加 */}
+  <meta property="og:type" content="product" />
+  <meta property="og:title" content={meta?.title || 'Product Page'} />
+  <meta property="og:description" content={meta?.description || 'Product Description'} />
+  {meta?.image && <meta property="og:image" content={meta.image} />}
+  <meta property="product:price:amount" content="1000" />
+  <meta property="product:price:currency" content="JPY" />
+  
+  {/* ピクセルコードを直接<head>タグ内に挿入 */}
+  {link?.pixel_code && (
+    <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
+  )}
+</Head>
+```
+
+### 待機処理部分
+```javascript
+// TikTokピクセルの初期化を待機
+let attempts = 0;
+const maxAttempts = 30; // 15秒まで待機（30回 × 500ms = 15秒）
+const waitTime = 500; // 0.5秒ごとにチェック
+
+while (attempts < maxAttempts) {
+  if (window.ttq) {
+    console.log(`TikTokピクセル: 初期化確認成功 (${attempts + 1}回目の試行)`);
+    break;
+  }
+  await new Promise(resolve => setTimeout(resolve, waitTime));
+  attempts++;
+  console.log(`TikTokピクセル: 初期化待機中... (${attempts}/${maxAttempts})`);
+}
+
+// イベント発火後の待機
+console.log('TikTokピクセル: イベント発火を確実にするため待機中... (7秒)');
+await new Promise(resolve => setTimeout(resolve, 7000));
+```
+
+これらの実装により、TikTok商品リンクとしての機能が大幅に向上し、より確実にイベントが発火するようになりました。 
