@@ -291,9 +291,9 @@ export default function Admin() {
               {selectedLink.pixel_code.includes('ttq.track') || selectedLink.pixel_code.includes('track(') || selectedLink.pixel_code.includes('ClickButton') || selectedLink.pixel_code.includes('CompletePayment') ? (
                 <p className="text-green-600">✓ トラッキングコードが含まれています</p>
               ) : (
-                <p className="text-yellow-600">⚠ トラッキングコードが見つかりません - リダイレクト時に自動的に追加されます</p>
+                <p className="text-yellow-600">⚠ トラッキングコードが見つかりません</p>
               )}
-
+              
               {selectedLink.pixel_code.includes('ttq.load') ? (
                 <p className="text-green-600">✓ ピクセルIDのロード処理が含まれています</p>
               ) : (
@@ -319,31 +319,21 @@ export default function Admin() {
                           if (error) {
                             alert('ピクセルコードの更新に失敗しました: ' + error.message);
                           } else {
-                            // 更新後の最新データを取得して表示
-                            supabase
-                              .from('affiliate_links')
-                              .select('*')
-                              .eq('id', selectedLink.id)
-                              .single()
-                              .then(({ data, error }) => {
-                                if (error) {
-                                  alert('更新データの取得に失敗しました');
-                                } else if (data) {
-                                  setSelectedLink(data);
-                                  loadSavedLinks(); // リスト更新
-                                  alert('CompletePaymentイベントを追加しました！');
-                                }
-                              });
+                            alert('CompletePaymentイベントを追加しました！');
+                            // 更新したデータを再読み込み
+                            loadSavedLinks();
+                            // モーダルを閉じる
+                            setShowPixelModal(false);
                           }
                         });
                     }}
-                    className="mt-1 text-sm px-3 py-1 bg-blue-100 hover:bg-blue-200 rounded"
+                    className="mt-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                   >
                     CompletePaymentイベントを追加
                   </button>
                 </div>
               ) : (
-                <p className="text-green-600">✓ CompletePaymentイベントが含まれています - TikTok商品リンクとして使用できます</p>
+                <p className="text-green-600 mt-2">✓ CompletePaymentイベントが含まれています - TikTok商品リンクとして使用できます</p>
               )}
             </div>
           </div>
