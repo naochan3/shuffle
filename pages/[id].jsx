@@ -27,18 +27,18 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           return;
         }
         
-        // ピクセルコードの処理
+        // ピクセルコードの処理と待機
         if (link.pixel_code) {
-          console.log('ピクセルコード確認');
+          console.log('TikTokピクセル: 初期化を確認中');
           
           // TikTokピクセルの初期化を待機
           let attempts = 0;
-          const maxAttempts = 10; // 5秒までの待機
+          const maxAttempts = 10; // 5秒まで待機
           const waitTime = 500; // 0.5秒ごとにチェック
 
           while (attempts < maxAttempts) {
             if (window.ttq) {
-              console.log('TikTok Pixel 初期化成功');
+              console.log('TikTokピクセル: 初期化確認成功');
               break;
             }
             await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -62,20 +62,20 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                   value: 1,
                   currency: 'JPY'
                 });
-                console.log('追加のCompletePayment イベント送信成功');
+                console.log('TikTokピクセル: 追加のCompletePaymentイベント送信成功');
               }
 
-              // イベント送信後の待機時間（1000ms）
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              // イベント送信後の待機時間（1500ms）
+              await new Promise(resolve => setTimeout(resolve, 1500));
             } catch (eventError) {
-              console.error('イベント送信エラー:', eventError);
+              console.error('TikTokピクセル: イベント送信エラー', eventError);
               // エラー時でも少し待機してからリダイレクト
               await new Promise(resolve => setTimeout(resolve, 500));
             }
           } else {
-            console.warn('TikTok Pixel 初期化失敗 - 最大試行回数に到達');
+            console.warn('TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達');
             // 初期化失敗時も少し待機
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
 
@@ -120,7 +120,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         <meta property="product:price:currency" content="JPY" />
         
         {/* ピクセルコードを直接<head>タグ内に挿入 */}
-        {link && link.pixel_code && (
+        {link?.pixel_code && (
           <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
         )}
       </Head>
