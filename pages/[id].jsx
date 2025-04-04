@@ -1,64 +1,129 @@
 import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Head from 'next/head';
 import supabase from '../lib/supabase';
 
 // クライアントサイドでのリダイレクト用コンポーネント
-export default function RedirectPage({ link, error }) {
-  const router = useRouter();
+export default function RedirectPage({ link, meta, error: serverError }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(serverError);
 
   useEffect(() => {
-    // データが読み込まれるまでは何もしない
-    if (router.isFallback) return;
-
-    // エラーがある場合は404ページに遷移
-    if (error || !link) {
-      router.push('/404');
-      return;
-    }
-
-    // ピクセルコードの読み込み（トラッキング）
-    if (link.pixel_code) {
+    const redirect = async () => {
       try {
-        const pixelScript = document.createElement('div');
-        pixelScript.innerHTML = link.pixel_code;
-        document.head.appendChild(pixelScript);
-        
-        // TikTokのttclidを取得（URLから）
-        const ttclid = new URLSearchParams(window.location.search).get('ttclid');
-        
-        // 修正されたURLを使用
-        let finalUrl = link.modified_url;
-        if (ttclid) {
-          // ttclidプレースホルダーを実際の値に置換
-          finalUrl = finalUrl.replace('${ttclid}', ttclid);
+        setLoading(true);
+
+        // サーバーサイドでエラーが発生している場合は処理を中止
+        if (serverError) {
+          setError(serverError);
+          setLoading(false);
+          return;
+        }
+
+        // リンクデータが存在しない場合
+        if (!link || !link.affiliate_url) {
+          setError('リダイレクト先URLが見つかりません。');
+          setLoading(false);
+          return;
         }
         
-        // トラッキングコードが実行される時間を少し待ってからリダイレクト
-        setTimeout(() => {
-          window.location.href = finalUrl;
-        }, 300);
-      } catch (err) {
-        console.error('ピクセルコード実行エラー:', err);
-        // エラーが発生しても最終的にはリダイレクト
-        window.location.href = link.affiliate_url;
-      }
-    } else {
-      // ピクセルコードがない場合は直接リダイレクト
-      window.location.href = link.affiliate_url;
-    }
-  }, [router, link, error]);
+        // ピクセルコードをページに挿入
+        if (link.pixel_code) {
+          const div = document.createElement('div');
+          div.innerHTML = link.pixel_code;
+          document.head.appendChild(div);
+          console.log('ピクセルコード挿入完了');
+          
+          // TikTokピクセルの初期化を待機
+          let attempts = 0;
+          const maxAttempts = 10; // 5秒までの待機に延長
+          const waitTime = 500; // 0.5秒ごとにチェック
 
-  // ローディング画面（ほぼ表示されない）
+          while (attempts < maxAttempts) {
+            if (window.ttq) {
+              console.log('TikTok Pixel 初期化成功');
+              break;
+            }
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            attempts++;
+          }
+
+          if (window.ttq) {
+            try {
+              // CompletePaymentイベントを送信（フォーマットを最適化）
+              window.ttq.track('CompletePayment', {
+                contents: [{
+                  content_id: link.id,
+                  content_type: 'product_link',
+                  content_name: 'Product Link'
+                }],
+                value: 1,
+                currency: 'JPY'
+              });
+              console.log('CompletePayment イベント送信成功');
+
+              // イベント送信後の待機時間を延長（1000ms）
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (eventError) {
+              console.error('イベント送信エラー:', eventError);
+              // エラー時でも少し待機してからリダイレクト
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          } else {
+            console.warn('TikTok Pixel 初期化失敗 - 最大試行回数に到達');
+            // 初期化失敗時も少し待機
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+
+        // リダイレクト実行
+        console.log('リダイレクト実行:', link.affiliate_url);
+        window.location.href = link.affiliate_url;
+      } catch (err) {
+        console.error('リダイレクトエラー:', err);
+        setError('リダイレクト処理中にエラーが発生しました。');
+        setLoading(false);
+      }
+    };
+
+    redirect();
+  }, [link, serverError]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
+          <div className="text-red-600 text-center">
+            <h1 className="text-xl font-semibold mb-2">エラーが発生しました</h1>
+            <p>{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      backgroundColor: '#f7fafc'
-    }}>
-      <div style={{ textAlign: 'center' }}>
-        <p>リダイレクト中...</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Head>
+        <title>{meta?.title || 'リダイレクト中...'}</title>
+        <meta name="description" content={meta?.description || 'ページ移動中です。少々お待ちください。'} />
+        <meta name="robots" content="noindex" />
+        {/* TikTok用のページレベルメタデータを追加 */}
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={meta?.title || 'Product Page'} />
+        <meta property="og:description" content={meta?.description || 'Product Description'} />
+        {meta?.image && <meta property="og:image" content={meta.image} />}
+        <meta property="product:price:amount" content="1000" />
+        <meta property="product:price:currency" content="JPY" />
+      </Head>
+      <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">リダイレクト中...</p>
+          {meta?.title && (
+            <p className="mt-2 text-sm text-gray-500">{meta.title}</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -73,45 +138,105 @@ export async function getServerSideProps({ params }) {
       props: {
         error: 'IDが指定されていません',
         link: null,
+        meta: null
       }
     };
   }
 
   try {
-    console.log('Supabaseからデータ取得中...');
-    
     // IDをもとにSupabaseからデータを取得
-    const { data, error } = await supabase
+    const { data: link, error } = await supabase
       .from('affiliate_links')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Supabaseからのデータ取得エラー:', error.message);
       return {
         props: {
           error: `データ取得エラー: ${error.message}`,
-          link: null
+          link: null,
+          meta: null
         }
       };
     }
 
-    if (!data) {
-      console.log('データが見つかりません。ID:', id);
+    if (!link) {
+      console.log(`ID「${id}」に該当するリンクは見つかりませんでした`);
       return {
         props: {
-          error: 'ページが見つかりません',
-          link: null
+          error: 'リンクが見つかりません',
+          link: null,
+          meta: null
         }
       };
     }
 
-    console.log('データ取得成功:', data.id);
+    // アフィリエイトURLが設定されていない場合
+    if (!link.affiliate_url) {
+      return {
+        props: {
+          error: 'リダイレクト先URLが設定されていません',
+          link: null,
+          meta: null
+        }
+      };
+    }
+    
+    // アフィリエイトURLからメタデータを取得する
+    let meta = null;
+    
+    try {
+      // Node-fetchを使用してURLの内容を取得
+      const fetch = require('node-fetch');
+      const response = await fetch(link.affiliate_url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        timeout: 5000 // 5秒でタイムアウト
+      });
+      
+      if (response.ok) {
+        const html = await response.text();
+        
+        // メタタグからタイトルと説明を抽出
+        const getMetaContent = (html, name) => {
+          const metaMatch = html.match(new RegExp(`<meta\\s+(name|property)=["']${name}["']\\s+content=["']([^"']+)["']`, 'i')) 
+                        || html.match(new RegExp(`<meta\\s+content=["']([^"']+)["']\\s+(name|property)=["']${name}["']`, 'i'));
+          return metaMatch ? metaMatch[2] || metaMatch[1] : null;
+        };
+        
+        // タイトルの取得 (OGPやtitleタグから)
+        let title = getMetaContent(html, 'og:title');
+        if (!title) {
+          const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+          title = titleMatch ? titleMatch[1] : null;
+        }
+        
+        // 説明の取得
+        const description = getMetaContent(html, 'og:description') || 
+                            getMetaContent(html, 'description');
+        
+        // 画像の取得
+        const image = getMetaContent(html, 'og:image');
+        
+        meta = {
+          title: title || null,
+          description: description || null,
+          image: image || null
+        };
+      }
+    } catch (metaError) {
+      console.error('メタデータ取得エラー:', metaError);
+      // メタデータ取得エラーは無視してデフォルト表示にする
+    }
     
     return {
       props: {
-        link: data,
+        link,
+        meta: meta || null,
         error: null
       }
     };
@@ -121,7 +246,8 @@ export async function getServerSideProps({ params }) {
     return {
       props: {
         error: `予期しないエラー: ${error.message || '不明なエラー'}`,
-        link: null
+        link: null,
+        meta: null
       }
     };
   }
