@@ -27,9 +27,9 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           return;
         }
         
-        // ピクセルコードの処理と待機
+        // ピクセルコードの処理と待機（既にHEADに挿入済みのため、初期化確認と補完のみ）
         if (link.pixel_code) {
-          console.log('TikTokピクセル: 初期化を確認中');
+          console.log('TikTokピクセル: 初期化を確認');
           
           // TikTokピクセルの初期化を待機
           let attempts = 0;
@@ -43,6 +43,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
             }
             await new Promise(resolve => setTimeout(resolve, waitTime));
             attempts++;
+            console.log(`TikTokピクセル: 初期化待機中... (${attempts}/${maxAttempts})`);
           }
 
           // ttqオブジェクトが確実に初期化されているか確認
@@ -50,6 +51,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
             try {
               // CompletePaymentイベントがピクセルコードに含まれていない場合のみ、明示的に送信
               if (!link.pixel_code.includes('ttq.track(\'CompletePayment\'') && 
+                  !link.pixel_code.includes('"CompletePayment"') && 
                   !link.pixel_code.includes('event=complete payment') && 
                   !link.pixel_code.includes('event=CompletePayment')) {
                 // CompletePaymentイベントを送信（フォーマットを最適化）
@@ -63,10 +65,13 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                   currency: 'JPY'
                 });
                 console.log('TikTokピクセル: 追加のCompletePaymentイベント送信成功');
+              } else {
+                console.log('TikTokピクセル: CompletePaymentイベントは既に含まれています');
               }
 
-              // イベント送信後の待機時間（1500ms）
-              await new Promise(resolve => setTimeout(resolve, 1500));
+              // イベント送信後の待機時間（2000ms）
+              console.log('TikTokピクセル: イベント発火を確実にするため待機中...');
+              await new Promise(resolve => setTimeout(resolve, 2000));
             } catch (eventError) {
               console.error('TikTokピクセル: イベント送信エラー', eventError);
               // エラー時でも少し待機してからリダイレクト
