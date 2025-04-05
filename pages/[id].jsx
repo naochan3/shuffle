@@ -3,6 +3,16 @@ import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import supabase from '../lib/supabase';
 
+// すべてのコンソール出力を抑制する（TikTokアプリでのエラー表示を防ぐため）
+const suppressConsoleOutput = `
+  // コンソール出力を無効化
+  if (typeof window !== 'undefined') {
+    window.console.error = function() {};
+    window.console.log = function() {};
+    window.console.warn = function() {};
+  }
+`;
+
 // クライアントサイドでのリダイレクト用コンポーネント
 export default function RedirectPage({ link, meta, error: serverError }) {
   const [loading, setLoading] = useState(true);
@@ -11,7 +21,6 @@ export default function RedirectPage({ link, meta, error: serverError }) {
   useEffect(() => {
     // グローバルエラーハンドラーを設定
     const handleError = (event) => {
-      console.error('グローバルエラー:', event.error);
       // エラーをキャプチャするだけで、デフォルトの処理は継続させる
       // event.preventDefault();
     };
@@ -24,7 +33,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                typeof window.ttq !== 'undefined' && 
                window.ttq !== null;
       } catch (e) {
-        console.warn('ttqチェックエラー:', e);
+        // エラーメッセージを出力しない
         return false;
       }
     };
@@ -49,7 +58,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         
         // ピクセルコードの処理と待機
         if (link.pixel_code) {
-          console.log('TikTokピクセル: 初期化を確認');
+          // TikTokピクセル: 初期化を確認
           
           try {
             // TikTokピクセルの初期化を待機
@@ -60,12 +69,12 @@ export default function RedirectPage({ link, meta, error: serverError }) {
             // ttqが利用可能になるまで待機するループ
             while (attempts < maxAttempts) {
               if (isTtqAvailable()) {
-                console.log(`TikTokピクセル: 初期化確認成功 (${attempts + 1}回目の試行)`);
+                // TikTokピクセル: 初期化確認成功
                 break;
               }
               await new Promise(resolve => setTimeout(resolve, waitTime));
               attempts++;
-              console.log(`TikTokピクセル: 初期化待機中... (${attempts}/${maxAttempts})`);
+              // TikTokピクセル: 初期化待機中...
             }
 
             // ttqオブジェクトが確実に初期化されているか確認
@@ -73,34 +82,34 @@ export default function RedirectPage({ link, meta, error: serverError }) {
               try {
                 // 単純なイベント送信に修正
                 window.ttq.track('CompletePayment');
-                console.log('TikTokピクセル: CompletePaymentイベント送信成功');
+                // TikTokピクセル: CompletePaymentイベント送信成功
 
                 // イベント送信後の待機時間（3秒に短縮）
-                console.log('TikTokピクセル: イベント発火を確実にするため待機中... (3秒)');
+                // TikTokピクセル: イベント発火を確実にするため待機中...
                 await new Promise(resolve => setTimeout(resolve, 3000));
-                console.log('TikTokピクセル: 待機完了、リダイレクトを実行します');
+                // TikTokピクセル: 待機完了、リダイレクトを実行します
               } catch (eventError) {
-                console.error('TikTokピクセル: イベント送信エラー', eventError);
+                // TikTokピクセル: イベント送信エラー - エラーメッセージを出力しない
                 // エラー時でも少し待機してからリダイレクト
                 await new Promise(resolve => setTimeout(resolve, 1000));
               }
             } else {
-              console.warn('TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達');
+              // TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達 - メッセージ出力しない
               // 初期化失敗時も少し待機
               await new Promise(resolve => setTimeout(resolve, 1000));
             }
           } catch (pixelError) {
-            console.error('TikTokピクセル処理エラー:', pixelError);
+            // TikTokピクセル処理エラー - エラーメッセージを出力しない
             // エラーが発生しても処理を継続
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
 
         // 最終的なリダイレクト実行
-        console.log('リダイレクト実行:', link.affiliate_url);
+        // リダイレクト実行メッセージ - 出力しない
         window.location.href = link.affiliate_url;
       } catch (err) {
-        console.error('リダイレクトエラー:', err);
+        // リダイレクトエラー - エラーメッセージを出力しない
         setError('リダイレクト処理中にエラーが発生しました。');
         setLoading(false);
       }
@@ -142,6 +151,9 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         <meta property="product:price:amount" content="1000" />
         <meta property="product:price:currency" content="JPY" />
         
+        {/* コンソール出力を無効化するスクリプト */}
+        <script dangerouslySetInnerHTML={{ __html: suppressConsoleOutput }} />
+        
         {/* ピクセルコードを安全に挿入 */}
         {link?.pixel_code && (
           <script
@@ -150,7 +162,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                 try {
                   ${link.pixel_code}
                 } catch(e) {
-                  console.error('ピクセルコード実行エラー:', e);
+                  // エラーメッセージを出力しない（TikTokアプリでの表示を防ぐため）
                 }
               `
             }}
@@ -193,7 +205,7 @@ export async function getServerSideProps({ params }) {
       .maybeSingle();
 
     if (error) {
-      console.error('Supabaseからのデータ取得エラー:', error.message);
+      // エラーメッセージを出力しない
       return {
         props: {
           error: `データ取得エラー: ${error.message}`,
@@ -204,7 +216,7 @@ export async function getServerSideProps({ params }) {
     }
 
     if (!link) {
-      console.log(`ID「${id}」に該当するリンクは見つかりませんでした`);
+      // ID該当リンクなしメッセージ - 出力しない
       return {
         props: {
           error: 'リンクが見つかりません',
@@ -249,53 +261,34 @@ export async function getServerSideProps({ params }) {
           return metaMatch ? metaMatch[2] || metaMatch[1] : null;
         };
         
-        // タイトルの取得 (OGPやtitleタグから)
-        let title = getMetaContent(html, 'og:title');
-        if (!title) {
-          const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-          title = titleMatch ? titleMatch[1] : null;
-        }
-        
-        // 説明の取得
-        const description = getMetaContent(html, 'og:description') || 
-                            getMetaContent(html, 'description');
-        
-        // 画像の取得
-        const image = getMetaContent(html, 'og:image');
+        const title = getMetaContent(html, 'og:title') || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '';
+        const description = getMetaContent(html, 'og:description') || getMetaContent(html, 'description') || '';
+        const image = getMetaContent(html, 'og:image') || '';
         
         meta = {
-          title: title || 'リダイレクト中...',
-          description: description || 'ページ移動中です。少々お待ちください。',
-          image: image || null
+          title,
+          description,
+          image
         };
       }
     } catch (metaError) {
-      console.error('メタデータ取得エラー:', metaError);
-      // メタデータ取得エラーは無視してデフォルト表示にする
-      meta = {
-        title: 'リダイレクト中...',
-        description: 'ページ移動中です。少々お待ちください。',
-        image: null
-      };
+      // メタデータ取得エラー - 出力しない
+      // メタデータの取得に失敗しても処理は続行
     }
     
+    // 正常にデータを返す
     return {
       props: {
         link,
-        meta: meta || {
-          title: 'リダイレクト中...',
-          description: 'ページ移動中です。少々お待ちください。',
-          image: null
-        },
-        error: null
+        error: null,
+        meta
       }
     };
   } catch (error) {
-    console.error('予期しないエラー:', error);
-    
+    // 予期しないエラー - 出力しない
     return {
       props: {
-        error: `予期しないエラー: ${error.message || '不明なエラー'}`,
+        error: 'データ取得中にエラーが発生しました',
         link: null,
         meta: null
       }
