@@ -9,6 +9,26 @@ export default function RedirectPage({ link, meta, error: serverError }) {
   const [error, setError] = useState(serverError);
 
   useEffect(() => {
+    // グローバルエラーハンドラーを設定
+    const handleError = (event) => {
+      console.error('グローバルエラー:', event.error);
+      // エラーをキャプチャするだけで、デフォルトの処理は継続させる
+      // event.preventDefault();
+    };
+    window.addEventListener('error', handleError);
+    
+    // 安全なttqチェック関数
+    const isTtqAvailable = () => {
+      try {
+        return typeof window !== 'undefined' && 
+               typeof window.ttq !== 'undefined' && 
+               window.ttq !== null;
+      } catch (e) {
+        console.warn('ttqチェックエラー:', e);
+        return false;
+      }
+    };
+    
     const redirect = async () => {
       try {
         setLoading(true);
@@ -27,65 +47,56 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           return;
         }
         
-        // ピクセルコードの処理と待機（既にHEADに挿入済みのため、初期化確認と補完のみ）
+        // ピクセルコードの処理と待機
         if (link.pixel_code) {
           console.log('TikTokピクセル: 初期化を確認');
           
-          // TikTokピクセルの初期化を待機
-          let attempts = 0;
-          const maxAttempts = 30; // 15秒まで待機（30回 × 500ms = 15秒）
-          const waitTime = 500; // 0.5秒ごとにチェック
+          try {
+            // TikTokピクセルの初期化を待機
+            let attempts = 0;
+            const maxAttempts = 10; // 5秒まで待機（10回 × 500ms = 5秒）
+            const waitTime = 500; // 0.5秒ごとにチェック
 
-          while (attempts < maxAttempts) {
-            if (window.ttq) {
-              console.log(`TikTokピクセル: 初期化確認成功 (${attempts + 1}回目の試行)`);
-              break;
-            }
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            attempts++;
-            console.log(`TikTokピクセル: 初期化待機中... (${attempts}/${maxAttempts})`);
-          }
-
-          // ttqオブジェクトが確実に初期化されているか確認
-          if (window.ttq) {
-            try {
-              // CompletePaymentイベントがピクセルコードに含まれていない場合のみ、明示的に送信
-              if (!link.pixel_code.includes('ttq.track(\'CompletePayment\'') && 
-                  !link.pixel_code.includes('"CompletePayment"') && 
-                  !link.pixel_code.includes('event=complete payment') && 
-                  !link.pixel_code.includes('event=CompletePayment')) {
-                // CompletePaymentイベントを送信（フォーマットを最適化）
-                window.ttq.track('CompletePayment', {
-                  contents: [{
-                    content_id: link.id,
-                    content_type: 'product_link',
-                    content_name: 'Product Link'
-                  }],
-                  value: 1,
-                  currency: 'JPY'
-                });
-                console.log('TikTokピクセル: 追加のCompletePaymentイベント送信成功');
-              } else {
-                console.log('TikTokピクセル: CompletePaymentイベントは既に含まれています');
+            // ttqが利用可能になるまで待機するループ
+            while (attempts < maxAttempts) {
+              if (isTtqAvailable()) {
+                console.log(`TikTokピクセル: 初期化確認成功 (${attempts + 1}回目の試行)`);
+                break;
               }
-
-              // イベント送信後の待機時間（7000ms = 7秒に延長）
-              console.log('TikTokピクセル: イベント発火を確実にするため待機中... (7秒)');
-              await new Promise(resolve => setTimeout(resolve, 7000));
-              console.log('TikTokピクセル: 待機完了、リダイレクトを実行します');
-            } catch (eventError) {
-              console.error('TikTokピクセル: イベント送信エラー', eventError);
-              // エラー時でも少し待機してからリダイレクト
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              attempts++;
+              console.log(`TikTokピクセル: 初期化待機中... (${attempts}/${maxAttempts})`);
             }
-          } else {
-            console.warn('TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達');
-            // 初期化失敗時も少し待機
-            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // ttqオブジェクトが確実に初期化されているか確認
+            if (isTtqAvailable()) {
+              try {
+                // 単純なイベント送信に修正
+                window.ttq.track('CompletePayment');
+                console.log('TikTokピクセル: CompletePaymentイベント送信成功');
+
+                // イベント送信後の待機時間（3秒に短縮）
+                console.log('TikTokピクセル: イベント発火を確実にするため待機中... (3秒)');
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                console.log('TikTokピクセル: 待機完了、リダイレクトを実行します');
+              } catch (eventError) {
+                console.error('TikTokピクセル: イベント送信エラー', eventError);
+                // エラー時でも少し待機してからリダイレクト
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            } else {
+              console.warn('TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達');
+              // 初期化失敗時も少し待機
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          } catch (pixelError) {
+            console.error('TikTokピクセル処理エラー:', pixelError);
+            // エラーが発生しても処理を継続
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
 
-        // リダイレクト実行
+        // 最終的なリダイレクト実行
         console.log('リダイレクト実行:', link.affiliate_url);
         window.location.href = link.affiliate_url;
       } catch (err) {
@@ -95,7 +106,13 @@ export default function RedirectPage({ link, meta, error: serverError }) {
       }
     };
 
+    // リダイレクト処理を実行
     redirect();
+    
+    // クリーンアップ関数
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
   }, [link, serverError]);
 
   if (error) {
@@ -125,9 +142,19 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         <meta property="product:price:amount" content="1000" />
         <meta property="product:price:currency" content="JPY" />
         
-        {/* ピクセルコードを直接<head>タグ内に挿入 */}
+        {/* ピクセルコードを安全に挿入 */}
         {link?.pixel_code && (
-          <div dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                try {
+                  ${link.pixel_code}
+                } catch(e) {
+                  console.error('ピクセルコード実行エラー:', e);
+                }
+              `
+            }}
+          />
         )}
       </Head>
       <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
@@ -237,20 +264,29 @@ export async function getServerSideProps({ params }) {
         const image = getMetaContent(html, 'og:image');
         
         meta = {
-          title: title || null,
-          description: description || null,
+          title: title || 'リダイレクト中...',
+          description: description || 'ページ移動中です。少々お待ちください。',
           image: image || null
         };
       }
     } catch (metaError) {
       console.error('メタデータ取得エラー:', metaError);
       // メタデータ取得エラーは無視してデフォルト表示にする
+      meta = {
+        title: 'リダイレクト中...',
+        description: 'ページ移動中です。少々お待ちください。',
+        image: null
+      };
     }
     
     return {
       props: {
         link,
-        meta: meta || null,
+        meta: meta || {
+          title: 'リダイレクト中...',
+          description: 'ページ移動中です。少々お待ちください。',
+          image: null
+        },
         error: null
       }
     };
