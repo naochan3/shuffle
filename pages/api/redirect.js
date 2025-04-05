@@ -21,7 +21,7 @@ export default async function redirectApi(req, res) {
       return res.redirect('/');
     }
   } catch (e) {
-    console.error('リダイレクトエラー:', e);
+    // エラーが発生してもコンソールに出力しない
     return res.redirect('/');
   }
 }
