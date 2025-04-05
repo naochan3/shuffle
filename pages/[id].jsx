@@ -63,7 +63,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           try {
             // TikTokピクセルの初期化を待機
             let attempts = 0;
-            const maxAttempts = 10; // 5秒まで待機（10回 × 500ms = 5秒）
+            const maxAttempts = 5; // 2.5秒まで待機（5回 × 500ms = 2.5秒）
             const waitTime = 500; // 0.5秒ごとにチェック
 
             // ttqが利用可能になるまで待機するループ
@@ -84,24 +84,24 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                 window.ttq.track('CompletePayment');
                 // TikTokピクセル: CompletePaymentイベント送信成功
 
-                // イベント送信後の待機時間（3秒に短縮）
+                // イベント送信後の待機時間（1.5秒に短縮）
                 // TikTokピクセル: イベント発火を確実にするため待機中...
-                await new Promise(resolve => setTimeout(resolve, 3000));
+                await new Promise(resolve => setTimeout(resolve, 1500));
                 // TikTokピクセル: 待機完了、リダイレクトを実行します
               } catch (eventError) {
                 // TikTokピクセル: イベント送信エラー - エラーメッセージを出力しない
                 // エラー時でも少し待機してからリダイレクト
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 500));
               }
             } else {
               // TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達 - メッセージ出力しない
               // 初期化失敗時も少し待機
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
           } catch (pixelError) {
             // TikTokピクセル処理エラー - エラーメッセージを出力しない
             // エラーが発生しても処理を継続
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
 
