@@ -154,19 +154,9 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         {/* コンソール出力を無効化するスクリプト */}
         <script dangerouslySetInnerHTML={{ __html: suppressConsoleOutput }} />
         
-        {/* ピクセルコードを安全に挿入 */}
+        {/* ピクセルコードを安全に挿入 - try-catchを使わない */}
         {link?.pixel_code && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                try {
-                  ${link.pixel_code}
-                } catch(e) {
-                  
-                }
-              `
-            }}
-          />
+          <script dangerouslySetInnerHTML={{ __html: link.pixel_code }} />
         )}
       </Head>
       <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-md">
