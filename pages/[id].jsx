@@ -162,7 +162,7 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                 try {
                   ${link.pixel_code}
                 } catch(e) {
-                  // エラーメッセージを出力しない（TikTokアプリでの表示を防ぐため）
+                  
                 }
               `
             }}
