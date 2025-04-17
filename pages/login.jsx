@@ -15,9 +15,9 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // ここでは簡易的な認証を行います
-      // 実際のプロダクションでは、サーバーサイドでの認証やSuapabaseなどの認証サービスを使用してください
-      if (email === 'admin@example.com' && password === 'password123') {
+      // 環境変数を使用して認証
+      if (email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && 
+          password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
         // 認証成功
         sessionStorage.setItem('isAuthenticated', 'true');
         sessionStorage.setItem('userEmail', email);
@@ -38,7 +38,6 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-100 flex flex-col justify-center">
       <Head>
         <title>ログイン | Shuffle</title>
-        <meta name="description" content="Shuffle管理画面ログイン" />
       </Head>
 
       <div className="max-w-md w-full mx-auto">

@@ -32,16 +32,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center">
+    <div className="min-h-screen bg-gray-100 flex flex-col justify-center">
       <Head>
-        <title>ログイン - Shuffle</title>
-        <meta name="description" content="TikTok Pixelコードとアフィリエイトリンクを簡単に管理できるURL短縮ツール" />
+        <title>Shuffle</title>
       </Head>
 
       <div className="max-w-md w-full mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Shuffle</h1>
-          <p className="text-gray-600 mt-2">TikTok Pixelコードとアフィリエイトリンクを簡単に管理できるURL短縮ツール</p>
         </div>
 
         <div className="bg-white p-8 border border-gray-200 rounded-lg shadow-sm">

@@ -366,7 +366,6 @@ export default function AdminPanel() {
       <div className="min-h-screen bg-gray-50">
         <Head>
           <title>短縮URL管理画面 | Shuffle</title>
-          <meta name="description" content="TikTok Pixel リダイレクト管理" />
         </Head>
 
         <main className="container mx-auto py-10 px-4">
