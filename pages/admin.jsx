@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import supabase from '../lib/supabase';
@@ -357,7 +357,7 @@ export default function AdminPanel() {
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('isAuthenticated');
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
 
@@ -682,8 +682,8 @@ export default function AdminPanel() {
                   
                   {/* ページネーション */}
                   {totalPages > 1 && (
-                    <div className="flex justify-center mt-6">
-                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <div className="flex justify-center mt-6 overflow-x-auto py-2">
+                      <nav className="flex flex-wrap justify-center" aria-label="Pagination">
                         <button
                           onClick={() => paginate(Math.max(1, currentPage - 1))}
                           disabled={currentPage === 1}
@@ -693,20 +693,36 @@ export default function AdminPanel() {
                           &laquo;
                         </button>
                         
-                        {/* ページ番号 */}
-                        {[...Array(totalPages).keys()].map(number => (
-                          <button
-                            key={number + 1}
-                            onClick={() => paginate(number + 1)}
-                            className={`relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${
-                              currentPage === number + 1
-                                ? 'bg-blue-50 border-blue-500 text-blue-600 z-10'
-                                : 'text-gray-500 hover:bg-gray-50'
-                            }`}
-                          >
-                            {number + 1}
-                          </button>
-                        ))}
+                        {/* ページ番号 - 表示数を制限 */}
+                        {[...Array(totalPages).keys()]
+                          .filter(number => {
+                            // 現在のページの前後2ページずつ、または最初と最後のページを表示
+                            return (
+                              number === 0 || 
+                              number === totalPages - 1 || 
+                              Math.abs(number + 1 - currentPage) <= 2
+                            );
+                          })
+                          .map((number, index, array) => (
+                            <React.Fragment key={number + 1}>
+                              {/* 省略記号を表示（ギャップがある場合） */}
+                              {index > 0 && array[index - 1] !== number - 1 && (
+                                <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                  ...
+                                </span>
+                              )}
+                              <button
+                                onClick={() => paginate(number + 1)}
+                                className={`relative inline-flex items-center px-3 py-2 border border-gray-300 bg-white text-sm font-medium ${
+                                  currentPage === number + 1
+                                    ? 'bg-blue-50 border-blue-500 text-blue-600 z-10'
+                                    : 'text-gray-500 hover:bg-gray-50'
+                                }`}
+                              >
+                                {number + 1}
+                              </button>
+                            </React.Fragment>
+                          ))}
                         
                         <button
                           onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
