@@ -1,71 +1,95 @@
+import { useState } from 'react';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
-import Link from 'next/link';
 
-export default function Home() {
+export default function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const router = useRouter();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 環境変数と比較して認証
+      if (email === process.env.NEXT_PUBLIC_ADMIN_EMAIL && 
+          password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
+        // クライアントサイドでのセッション保存
+        sessionStorage.setItem('isAuthenticated', 'true');
+        router.push('/admin');
+      } else {
+        throw new Error('メールアドレスまたはパスワードが正しくありません。');
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center">
       <Head>
-        <title>Shuffle - URL短縮&リダイレクトサービス</title>
-        <meta name="description" content="TikTok Pixelコードと元のアフィリエイトURLを管理するサービス" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>ログイン - Shuffle</title>
+        <meta name="description" content="TikTok Pixelコードとアフィリエイトリンクを簡単に管理できるURL短縮ツール" />
       </Head>
 
-      <main className="container mx-auto py-20 px-4">
-        <div className="text-center max-w-3xl mx-auto">
-          <h1 className="text-5xl font-bold mb-6 text-gray-800">Shuffle</h1>
-          <p className="text-xl text-gray-600 mb-10">
-            TikTok Pixelコードとアフィリエイトリンクを簡単に管理できるURL短縮ツール
-          </p>
-          
-          <div className="space-y-4">
-            <Link href="/admin" className="inline-block px-8 py-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition duration-200 shadow-md">
-              管理画面に進む
-            </Link>
-            
-            <div className="pt-4">
-              <Link href="/test-env" className="text-blue-600 hover:underline px-4">
-                環境変数確認
-              </Link>
-              <Link href="/test-supabase" className="text-blue-600 hover:underline px-4">
-                Supabase接続確認
-              </Link>
-            </div>
-          </div>
+      <div className="max-w-md w-full mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold">Shuffle</h1>
+          <p className="text-gray-600 mt-2">TikTok Pixelコードとアフィリエイトリンクを簡単に管理できるURL短縮ツール</p>
         </div>
 
-        <div className="mt-20 max-w-4xl mx-auto">
-          <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">主な機能</h2>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3 text-gray-800">ピクセルトラッキング</h3>
-              <p className="text-gray-600">
-                TikTok Pixelコードを簡単に埋め込み、訪問者の行動を追跡できます。
-              </p>
+        <div className="bg-white p-8 border border-gray-200 rounded-lg shadow-sm">
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                メールアドレス
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
             </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3 text-gray-800">カスタムURL</h3>
-              <p className="text-gray-600">
-                わかりやすいカスタムURLで、ユーザーに覚えやすい短縮リンクを提供します。
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h3 className="text-xl font-semibold mb-3 text-gray-800">簡単管理</h3>
-              <p className="text-gray-600">
-                シンプルな管理画面で、URLとピクセルコードを簡単に管理できます。
-              </p>
-            </div>
-          </div>
-        </div>
-      </main>
 
-      <footer className="bg-gray-100 py-8">
-        <div className="container mx-auto text-center text-gray-600">
-          <p>&copy; {new Date().getFullYear()} Shuffle - すべての権利を留保</p>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                パスワード
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+
+            {error && (
+              <div className="text-red-600 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              {loading ? 'ログイン中...' : 'ログイン'}
+            </button>
+          </form>
         </div>
-      </footer>
+      </div>
     </div>
   );
 } 
