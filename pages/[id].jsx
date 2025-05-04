@@ -27,6 +27,26 @@ export default function RedirectPage({ link, meta, error: serverError }) {
           return;
         }
         
+        // クリックログを記録
+        try {
+          const { error: logError } = await supabase
+            .from('click_logs')
+            .insert({
+              link_id: link.id,
+              user_agent: navigator.userAgent || null,
+              referrer: document.referrer || null
+            });
+            
+          if (logError) {
+            console.error('クリックログの記録に失敗:', logError);
+          } else {
+            console.log('クリックログを記録しました:', link.id);
+          }
+        } catch (logErr) {
+          console.error('クリックログ記録中のエラー:', logErr);
+          // クリックログのエラーはユーザー体験に影響しないよう無視して続行
+        }
+        
         // ピクセルコードの処理と待機（既にHEADに挿入済みのため、初期化確認と補完のみ）
         if (link.pixel_code) {
           console.log('TikTokピクセル: 初期化を確認');
