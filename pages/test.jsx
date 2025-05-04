@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [searchField, setSearchField] = useState('linkId');
   const [searchResults, setSearchResults] = useState(null);
   const [allLogs, setAllLogs] = useState([]);
+  const [totalClicks, setTotalClicks] = useState(0);
   
   // ホスト名を取得（短縮URL作成用）
   const getHostName = () => {
@@ -29,111 +30,115 @@ export default function DashboardPage() {
     return '';
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  // データ取得関数を独立させる（更新ボタン用）
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        // 日付範囲を計算
-        const now = new Date();
-        const yesterday = subDays(now, 1);
-        const lastWeekStart = startOfWeek(subDays(now, 7), { weekStartsOn: 1 });
-        const lastMonthStart = startOfMonth(subDays(now, 30));
+      // 日付範囲を計算
+      const now = new Date();
+      const yesterday = subDays(now, 1);
+      const lastWeekStart = startOfWeek(subDays(now, 7), { weekStartsOn: 1 });
+      const lastMonthStart = startOfMonth(subDays(now, 30));
 
-        // すべてのクリックログを取得（タイムスタンプ付き）
-        const { data: clickLogs, error: clickLogsError } = await supabase
-          .from('click_logs')
-          .select('*')
-          .order('clicked_at', { ascending: false });
+      // すべてのクリックログを取得（タイムスタンプ付き）
+      const { data: clickLogs, error: clickLogsError } = await supabase
+        .from('click_logs')
+        .select('*')
+        .order('clicked_at', { ascending: false });
 
-        if (clickLogsError) {
-          throw new Error(`クリックログの取得中にエラーが発生しました: ${clickLogsError.message}`);
-        }
-
-        // リンク情報を取得
-        const { data: links, error: linksError } = await supabase
-          .from('affiliate_links')
-          .select('id, affiliate_url');
-
-        if (linksError) {
-          throw new Error(`リンク情報の取得中にエラーが発生しました: ${linksError.message}`);
-        }
-
-        // リンクIDからリンク情報へのマッピングを作成
-        const linkMap = links.reduce((acc, link) => {
-          acc[link.id] = link;
-          return acc;
-        }, {});
-
-        // すべてのログを保存（検索用）
-        const processedLogs = clickLogs.map(log => ({
-          ...log,
-          shortUrl: `${getHostName()}/${log.link_id}`,
-          targetUrl: linkMap[log.link_id]?.affiliate_url || '不明なURL'
-        }));
-        setAllLogs(processedLogs);
-
-        // 日別、週別、月別のクリック数を集計
-        const dailyClicks = {};
-        const weeklyClicks = {};
-        const monthlyClicks = {};
-        const dailyTimestamps = {};
-
-        clickLogs.forEach(log => {
-          const clickDate = new Date(log.clicked_at);
-          const linkId = log.link_id;
-
-          // 日別集計（昨日から今日まで）
-          if (isAfter(clickDate, yesterday)) {
-            if (!dailyClicks[linkId]) {
-              dailyClicks[linkId] = 0;
-              dailyTimestamps[linkId] = [];
-            }
-            dailyClicks[linkId]++;
-            dailyTimestamps[linkId].push(log.clicked_at);
-          }
-
-          // 週別集計（先週の月曜から今日まで）
-          if (isAfter(clickDate, lastWeekStart)) {
-            weeklyClicks[linkId] = (weeklyClicks[linkId] || 0) + 1;
-          }
-
-          // 月別集計（先月の1日から今日まで）
-          if (isAfter(clickDate, lastMonthStart)) {
-            monthlyClicks[linkId] = (monthlyClicks[linkId] || 0) + 1;
-          }
-        });
-
-        // ランキングデータを作成
-        const createRankingData = (clicksObj, timestampsObj = {}) => {
-          return Object.entries(clicksObj)
-            .map(([linkId, count]) => ({
-              linkId,
-              count,
-              shortUrl: `${getHostName()}/${linkId}`,
-              targetUrl: linkMap[linkId]?.affiliate_url || '不明なURL',
-              lastClicked: timestampsObj[linkId] ? 
-                timestampsObj[linkId].sort((a, b) => new Date(b) - new Date(a))[0] : null
-            }))
-            .sort((a, b) => b.count - a.count) // クリック数で降順ソート
-            .slice(0, 10); // 上位10件を取得
-        };
-
-        setStats({
-          daily: createRankingData(dailyClicks, dailyTimestamps),
-          weekly: createRankingData(weeklyClicks),
-          monthly: createRankingData(monthlyClicks)
-        });
-
-        setLoading(false);
-      } catch (err) {
-        console.error('データ取得エラー:', err);
-        setError(err.message || 'データの取得中にエラーが発生しました');
-        setLoading(false);
+      if (clickLogsError) {
+        throw new Error(`クリックログの取得中にエラーが発生しました: ${clickLogsError.message}`);
       }
-    };
 
+      // 総クリック数を設定
+      setTotalClicks(clickLogs.length);
+
+      // リンク情報を取得
+      const { data: links, error: linksError } = await supabase
+        .from('affiliate_links')
+        .select('id, affiliate_url');
+
+      if (linksError) {
+        throw new Error(`リンク情報の取得中にエラーが発生しました: ${linksError.message}`);
+      }
+
+      // リンクIDからリンク情報へのマッピングを作成
+      const linkMap = links.reduce((acc, link) => {
+        acc[link.id] = link;
+        return acc;
+      }, {});
+
+      // すべてのログを保存（検索用）
+      const processedLogs = clickLogs.map(log => ({
+        ...log,
+        shortUrl: `${getHostName()}/${log.link_id}`,
+        targetUrl: linkMap[log.link_id]?.affiliate_url || '不明なURL'
+      }));
+      setAllLogs(processedLogs);
+
+      // 日別、週別、月別のクリック数を集計
+      const dailyClicks = {};
+      const weeklyClicks = {};
+      const monthlyClicks = {};
+      const dailyTimestamps = {};
+
+      clickLogs.forEach(log => {
+        const clickDate = new Date(log.clicked_at);
+        const linkId = log.link_id;
+
+        // 日別集計（昨日から今日まで）
+        if (isAfter(clickDate, yesterday)) {
+          if (!dailyClicks[linkId]) {
+            dailyClicks[linkId] = 0;
+            dailyTimestamps[linkId] = [];
+          }
+          dailyClicks[linkId]++;
+          dailyTimestamps[linkId].push(log.clicked_at);
+        }
+
+        // 週別集計（先週の月曜から今日まで）
+        if (isAfter(clickDate, lastWeekStart)) {
+          weeklyClicks[linkId] = (weeklyClicks[linkId] || 0) + 1;
+        }
+
+        // 月別集計（先月の1日から今日まで）
+        if (isAfter(clickDate, lastMonthStart)) {
+          monthlyClicks[linkId] = (monthlyClicks[linkId] || 0) + 1;
+        }
+      });
+
+      // ランキングデータを作成
+      const createRankingData = (clicksObj, timestampsObj = {}) => {
+        return Object.entries(clicksObj)
+          .map(([linkId, count]) => ({
+            linkId,
+            count,
+            shortUrl: `${getHostName()}/${linkId}`,
+            targetUrl: linkMap[linkId]?.affiliate_url || '不明なURL',
+            lastClicked: timestampsObj[linkId] ? 
+              timestampsObj[linkId].sort((a, b) => new Date(b) - new Date(a))[0] : null
+          }))
+          .sort((a, b) => b.count - a.count) // クリック数で降順ソート
+          .slice(0, 10); // 上位10件を取得
+      };
+
+      setStats({
+        daily: createRankingData(dailyClicks, dailyTimestamps),
+        weekly: createRankingData(weeklyClicks),
+        monthly: createRankingData(monthlyClicks)
+      });
+
+      setLoading(false);
+    } catch (err) {
+      console.error('データ取得エラー:', err);
+      setError(err.message || 'データの取得中にエラーが発生しました');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -368,6 +373,16 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold">ダッシュボード</h1>
             <div className="flex space-x-4">
+              <button
+                onClick={fetchData}
+                className="flex items-center text-green-600 hover:text-green-800 px-3 py-1 border border-green-600 rounded hover:bg-green-50"
+                disabled={loading}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loading ? '更新中...' : 'データ更新'}
+              </button>
               <Link href="/admin" className="text-blue-600 hover:underline">
                 管理画面へ
               </Link>
@@ -498,7 +513,7 @@ export default function DashboardPage() {
           
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">システム情報</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="border rounded p-4">
                 <p className="text-sm font-medium text-gray-500">データ集計時間</p>
                 <p className="mt-1">{format(new Date(), 'yyyy年MM月dd日 HH:mm:ss', { locale: ja })}</p>
@@ -506,6 +521,10 @@ export default function DashboardPage() {
               <div className="border rounded p-4">
                 <p className="text-sm font-medium text-gray-500">総記録リンク数</p>
                 <p className="mt-1">{Object.keys(stats.monthly).length} 件</p>
+              </div>
+              <div className="border rounded p-4">
+                <p className="text-sm font-medium text-gray-500">総クリック数</p>
+                <p className="mt-1">{totalClicks} 回</p>
               </div>
             </div>
           </div>
