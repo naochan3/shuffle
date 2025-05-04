@@ -158,10 +158,9 @@ export default function DashboardPage() {
           log.link_id.toLowerCase().includes(query)
         );
         break;
-      case 'url':
+      case 'targetUrl':
         results = allLogs.filter(log => 
-          log.targetUrl.toLowerCase().includes(query) || 
-          log.shortUrl.toLowerCase().includes(query)
+          log.targetUrl.toLowerCase().includes(query)
         );
         break;
       case 'count':
@@ -415,14 +414,14 @@ export default function DashboardPage() {
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="linkId">リンクID</option>
-                  <option value="url">URL</option>
+                  <option value="targetUrl">元URL</option>
                   <option value="count">クリック数</option>
                 </select>
               </div>
               <div className="flex-1 min-w-[200px]">
                 <input
-                  type="text"
-                  placeholder="検索キーワード"
+                  type={searchField === 'count' ? 'number' : 'text'}
+                  placeholder={searchField === 'count' ? '数値で入力してください' : '検索キーワード'}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -434,6 +433,17 @@ export default function DashboardPage() {
               >
                 検索
               </button>
+              {searchResults && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                >
+                  クリア
+                </button>
+              )}
             </div>
 
             {searchResults && (
