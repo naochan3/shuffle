@@ -189,19 +189,12 @@ export default function DashboardPage() {
         results = [];
     }
 
-    // 重複を排除し、クリック日時の降順で表示
-    const uniqueResults = [];
-    const seenLinks = {};
-
-    results.forEach(log => {
-      if (!seenLinks[log.link_id]) {
-        seenLinks[log.link_id] = true;
-        uniqueResults.push(log);
-      }
-    });
-
-    uniqueResults.sort((a, b) => new Date(b.clicked_at) - new Date(a.clicked_at));
-    setSearchResults(uniqueResults);
+    // 重複を排除せずに、クリック日時の降順で表示（クリック数の場合は除く）
+    if (searchField !== 'count') {
+      results.sort((a, b) => new Date(b.clicked_at) - new Date(a.clicked_at));
+    }
+    
+    setSearchResults(results);
   };
 
   // URLを短く表示
@@ -279,61 +272,90 @@ export default function DashboardPage() {
   );
 
   // 検索結果テーブル
-  const SearchResultsTable = ({ results }) => (
-    <div className="mt-4 overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              リンクID
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              短縮URL
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              元URL
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              クリック日時
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {results.length === 0 ? (
+  const SearchResultsTable = ({ results }) => {
+    // ユーザーエージェント情報から推測したデバイス情報を取得
+    const getDeviceInfo = (userAgent) => {
+      if (!userAgent) return '不明';
+      
+      if (userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS';
+      if (userAgent.includes('Android')) return 'Android';
+      if (userAgent.includes('Windows')) return 'Windows';
+      if (userAgent.includes('Mac')) return 'Mac';
+      if (userAgent.includes('Linux')) return 'Linux';
+      
+      return 'その他';
+    };
+    
+    return (
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
             <tr>
-              <td colSpan="4" className="px-4 py-4 text-center text-sm text-gray-500">
-                検索結果がありません
-              </td>
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                リンクID
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                短縮URL
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                元URL
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                クリック日時
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                デバイス
+              </th>
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                参照元
+              </th>
             </tr>
-          ) : (
-            results.map((item, index) => (
-              <tr key={`${item.link_id || item.linkId}-${index}`}>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {item.link_id || item.linkId}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <a href={item.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                    {item.shortUrl.split('/').pop()}
-                  </a>
-                </td>
-                <td className="px-4 py-4 text-sm text-gray-500">
-                  <div className="max-w-xs truncate">
-                    <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      {shortenUrl(item.targetUrl, 30)}
-                    </a>
-                  </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {item.clicked_at ? format(parseISO(item.clicked_at), 'yyyy/MM/dd HH:mm:ss') : 
-                   (item.count ? `${item.count} クリック` : '-')}
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {results.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="px-4 py-4 text-center text-sm text-gray-500">
+                  検索結果がありません
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+            ) : (
+              results.map((item, index) => (
+                <tr key={`${item.link_id || item.linkId}-${index}-${item.id || index}`}>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.link_id || item.linkId}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <a href={item.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {item.shortUrl.split('/').pop()}
+                    </a>
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-500">
+                    <div className="max-w-xs truncate">
+                      <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {shortenUrl(item.targetUrl, 30)}
+                      </a>
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.clicked_at ? format(parseISO(item.clicked_at), 'yyyy/MM/dd HH:mm:ss') : 
+                     (item.count ? `${item.count} クリック` : '-')}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.user_agent ? getDeviceInfo(item.user_agent) : '-'}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-500">
+                    <div className="max-w-xs truncate">
+                      {item.referrer || '-'}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <AuthCheck>
