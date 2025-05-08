@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import supabase from '../lib/supabase';
 import AuthCheck from '../components/AuthCheck';
-import { format, subDays, startOfWeek, startOfMonth, isAfter, parseISO } from 'date-fns';
+import { format, subDays, startOfWeek, startOfMonth, isAfter, parseISO, isWithinInterval } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
 // ダッシュボードページ
@@ -13,7 +13,8 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({
     daily: [],
     weekly: [],
-    monthly: []
+    monthly: [],
+    allTime: [] // 全期間のデータを追加
   });
   const [activeTab, setActiveTab] = useState('daily');
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +22,12 @@ export default function DashboardPage() {
   const [searchResults, setSearchResults] = useState(null);
   const [allLogs, setAllLogs] = useState([]);
   const [totalClicks, setTotalClicks] = useState(0);
+  const [uniqueLinksCount, setUniqueLinksCount] = useState(0); // ユニークリンク数追加
+  
+  // 日付範囲カスタム指定用
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [customDateActive, setCustomDateActive] = useState(false);
   
   // ホスト名を取得（短縮URL作成用）
   const getHostName = () => {
@@ -64,6 +71,9 @@ export default function DashboardPage() {
         throw new Error(`リンク情報の取得中にエラーが発生しました: ${linksError.message}`);
       }
 
+      // ユニークなリンク数を設定
+      setUniqueLinksCount(links.length);
+
       // リンクIDからリンク情報へのマッピングを作成
       const linkMap = links.reduce((acc, link) => {
         acc[link.id] = link;
@@ -78,11 +88,32 @@ export default function DashboardPage() {
       }));
       setAllLogs(processedLogs);
 
-      // 日別、週別、月別のクリック数を集計
+      // 日別、週別、月別、全期間のクリック数を集計
       const dailyClicks = {};
       const weeklyClicks = {};
       const monthlyClicks = {};
+      const allTimeClicks = {};
+      
+      // 最終クリック時間を記録するオブジェクト
       const dailyTimestamps = {};
+      const weeklyTimestamps = {};
+      const monthlyTimestamps = {};
+      const allTimeTimestamps = {};
+
+      // カスタム日付範囲のクリック数
+      const customRangeClicks = {};
+      const customRangeTimestamps = {};
+      
+      // カスタム日付範囲の解析
+      let customStartDate = null;
+      let customEndDate = null;
+      
+      if (startDate && endDate) {
+        customStartDate = new Date(startDate);
+        customEndDate = new Date(endDate);
+        // 終了日は23:59:59に設定して当日を含む
+        customEndDate.setHours(23, 59, 59, 999);
+      }
 
       clickLogs.forEach(log => {
         const clickDate = new Date(log.clicked_at);
@@ -100,12 +131,42 @@ export default function DashboardPage() {
 
         // 週別集計（先週の月曜から今日まで）
         if (isAfter(clickDate, lastWeekStart)) {
-          weeklyClicks[linkId] = (weeklyClicks[linkId] || 0) + 1;
+          if (!weeklyClicks[linkId]) {
+            weeklyClicks[linkId] = 0;
+            weeklyTimestamps[linkId] = [];
+          }
+          weeklyClicks[linkId]++;
+          weeklyTimestamps[linkId].push(log.clicked_at);
         }
 
         // 月別集計（先月の1日から今日まで）
         if (isAfter(clickDate, lastMonthStart)) {
-          monthlyClicks[linkId] = (monthlyClicks[linkId] || 0) + 1;
+          if (!monthlyClicks[linkId]) {
+            monthlyClicks[linkId] = 0;
+            monthlyTimestamps[linkId] = [];
+          }
+          monthlyClicks[linkId]++;
+          monthlyTimestamps[linkId].push(log.clicked_at);
+        }
+        
+        // 全期間集計（すべてのクリック）
+        if (!allTimeClicks[linkId]) {
+          allTimeClicks[linkId] = 0;
+          allTimeTimestamps[linkId] = [];
+        }
+        allTimeClicks[linkId]++;
+        allTimeTimestamps[linkId].push(log.clicked_at);
+        
+        // カスタム日付範囲の集計
+        if (customStartDate && customEndDate) {
+          if (isWithinInterval(clickDate, { start: customStartDate, end: customEndDate })) {
+            if (!customRangeClicks[linkId]) {
+              customRangeClicks[linkId] = 0;
+              customRangeTimestamps[linkId] = [];
+            }
+            customRangeClicks[linkId]++;
+            customRangeTimestamps[linkId].push(log.clicked_at);
+          }
         }
       });
 
@@ -117,19 +178,29 @@ export default function DashboardPage() {
             count,
             shortUrl: `${getHostName()}/${linkId}`,
             targetUrl: linkMap[linkId]?.affiliate_url || '不明なURL',
-            lastClicked: timestampsObj[linkId] ? 
+            lastClicked: timestampsObj[linkId] && timestampsObj[linkId].length > 0 ? 
               timestampsObj[linkId].sort((a, b) => new Date(b) - new Date(a))[0] : null
           }))
           .sort((a, b) => b.count - a.count) // クリック数で降順ソート
           .slice(0, 10); // 上位10件を取得
       };
 
-      setStats({
+      const statsData = {
         daily: createRankingData(dailyClicks, dailyTimestamps),
-        weekly: createRankingData(weeklyClicks),
-        monthly: createRankingData(monthlyClicks)
-      });
+        weekly: createRankingData(weeklyClicks, weeklyTimestamps),
+        monthly: createRankingData(monthlyClicks, monthlyTimestamps),
+        allTime: createRankingData(allTimeClicks, allTimeTimestamps)
+      };
+      
+      // カスタム日付範囲のデータを追加（設定されている場合）
+      if (customStartDate && customEndDate) {
+        statsData.customRange = createRankingData(customRangeClicks, customRangeTimestamps);
+        setCustomDateActive(true);
+      } else {
+        setCustomDateActive(false);
+      }
 
+      setStats(statsData);
       setLoading(false);
     } catch (err) {
       console.error('データ取得エラー:', err);
@@ -141,6 +212,16 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchData();
   }, []);
+  
+  // 日付範囲が変更されたときにデータを取得
+  const handleDateRangeSubmit = (e) => {
+    e.preventDefault();
+    if (startDate && endDate) {
+      fetchData();
+      // カスタム日付範囲タブに切り替え
+      setActiveTab('customRange');
+    }
+  };
 
   // 検索機能
   const handleSearch = () => {
@@ -209,26 +290,26 @@ export default function DashboardPage() {
 
   // 表形式でランキングを表示するコンポーネント
   const RankingTable = ({ data }) => (
-    <div className="mt-4 overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
+    <div className="mt-4 overflow-hidden"> {/* overflow-x-auto から overflow-hidden に変更 */}
+      <table className="min-w-full divide-y divide-gray-200 table-fixed"> {/* table-fixed を追加してカラム幅を固定 */}
         <thead className="bg-gray-50">
           <tr>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[5%]">
               ランク
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
               リンクID
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
               短縮URL
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[40%]">
               元URL
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
               最終クリック
             </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
               クリック数
             </th>
           </tr>
@@ -246,16 +327,16 @@ export default function DashboardPage() {
                 <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {index + 1}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
                   {item.linkId}
                 </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
                   <a href={item.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                     {item.shortUrl.split('/').pop()}
                   </a>
                 </td>
                 <td className="px-4 py-4 text-sm text-gray-500">
-                  <div className="max-w-xs truncate">
+                  <div className="truncate">
                     <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                       {shortenUrl(item.targetUrl, 30)}
                     </a>
@@ -291,26 +372,26 @@ export default function DashboardPage() {
     };
     
     return (
-      <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+      <div className="mt-4 overflow-hidden"> {/* 横スクロール無効化 */}
+        <table className="min-w-full divide-y divide-gray-200 table-fixed">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
                 リンクID
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                 短縮URL
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">
                 元URL
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
                 クリック日時
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                 デバイス
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
                 参照元
               </th>
             </tr>
@@ -325,16 +406,16 @@ export default function DashboardPage() {
             ) : (
               results.map((item, index) => (
                 <tr key={`${item.link_id || item.linkId}-${index}-${item.id || index}`}>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
                     {item.link_id || item.linkId}
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
                     <a href={item.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                       {item.shortUrl.split('/').pop()}
                     </a>
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-500">
-                    <div className="max-w-xs truncate">
+                    <div className="truncate">
                       <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         {shortenUrl(item.targetUrl, 30)}
                       </a>
@@ -348,7 +429,7 @@ export default function DashboardPage() {
                     {item.user_agent ? getDeviceInfo(item.user_agent) : '-'}
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-500">
-                    <div className="max-w-xs truncate">
+                    <div className="truncate">
                       {item.referrer || '-'}
                     </div>
                   </td>
@@ -453,15 +534,63 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+          
+          {/* 日付範囲選択フォーム */}
+          <div className="bg-white shadow rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold mb-4">日付範囲指定</h2>
+            <form onSubmit={handleDateRangeSubmit} className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">開始日</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">終了日</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                期間を適用
+              </button>
+              {customDateActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                    setCustomDateActive(false);
+                    setActiveTab('daily'); // デフォルトタブに戻す
+                    fetchData(); // データを再取得
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                >
+                  期間指定をクリア
+                </button>
+              )}
+            </form>
+          </div>
 
           <div className="bg-white shadow rounded-lg p-6 mb-8">
             <h2 className="text-xl font-semibold mb-4">アクセス統計</h2>
             
             <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
+              <nav className="-mb-px flex flex-wrap gap-4">
                 <button
                   onClick={() => setActiveTab('daily')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-2 px-3 border-b-2 font-medium text-sm ${
                     activeTab === 'daily'
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -471,7 +600,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('weekly')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-2 px-3 border-b-2 font-medium text-sm ${
                     activeTab === 'weekly'
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -481,7 +610,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('monthly')}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-2 px-3 border-b-2 font-medium text-sm ${
                     activeTab === 'monthly'
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -489,6 +618,28 @@ export default function DashboardPage() {
                 >
                   マンスリー
                 </button>
+                <button
+                  onClick={() => setActiveTab('allTime')}
+                  className={`py-2 px-3 border-b-2 font-medium text-sm ${
+                    activeTab === 'allTime'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  全期間
+                </button>
+                {customDateActive && (
+                  <button
+                    onClick={() => setActiveTab('customRange')}
+                    className={`py-2 px-3 border-b-2 font-medium text-sm ${
+                      activeTab === 'customRange'
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    カスタム期間
+                  </button>
+                )}
               </nav>
             </div>
 
@@ -517,6 +668,20 @@ export default function DashboardPage() {
                     <RankingTable data={stats.monthly} />
                   </div>
                 )}
+                {activeTab === 'allTime' && (
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">全期間ランキング</h3>
+                    <RankingTable data={stats.allTime} />
+                  </div>
+                )}
+                {activeTab === 'customRange' && customDateActive && (
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">
+                      カスタム期間ランキング ({startDate} 〜 {endDate})
+                    </h3>
+                    <RankingTable data={stats.customRange || []} />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -530,7 +695,7 @@ export default function DashboardPage() {
               </div>
               <div className="border rounded p-4">
                 <p className="text-sm font-medium text-gray-500">総記録リンク数</p>
-                <p className="mt-1">{Object.keys(stats.monthly).length} 件</p>
+                <p className="mt-1">{uniqueLinksCount} 件</p>
               </div>
               <div className="border rounded p-4">
                 <p className="text-sm font-medium text-gray-500">総クリック数</p>
