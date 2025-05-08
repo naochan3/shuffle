@@ -520,10 +520,13 @@ export default function AdminPanel() {
               <h2 className="text-xl font-semibold">保存済みリンク一覧</h2>
               <button 
                 onClick={loadSavedLinks} 
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center"
                 disabled={loadingLinks}
               >
-                {loadingLinks ? '読込中...' : '更新'}
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {loadingLinks ? '読込中...' : 'データ更新'}
               </button>
             </div>
             
