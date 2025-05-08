@@ -365,19 +365,19 @@ export default function AdminPanel() {
     <AuthCheck>
     <div className="min-h-screen bg-gray-50">
       <Head>
-          <title>短縮URL管理画面 | Shuffle</title>
+          <title>短縮URL管理パネル | Shuffle</title>
       </Head>
 
       <main className="container mx-auto py-10 px-4">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-center">短縮URL管理画面</h1>
             <div className="flex space-x-4">
-          <Link href="/" className="text-blue-600 hover:underline">
+          <Link href="/" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
             ホームに戻る
           </Link>
               <button 
                 onClick={handleLogout}
-                className="text-red-600 hover:underline"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 ログアウト
               </button>
@@ -520,7 +520,7 @@ export default function AdminPanel() {
               <h2 className="text-xl font-semibold">保存済みリンク一覧</h2>
               <button 
                 onClick={loadSavedLinks} 
-                className="text-sm px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loadingLinks}
               >
                 {loadingLinks ? '読込中...' : '更新'}
@@ -646,28 +646,21 @@ export default function AdminPanel() {
                             <div className="flex space-x-2">
                               <button
                                 onClick={() => copyToClipboard(`${window.location.origin}/${link.id}`, '短縮URLをコピーしました！')}
-                                className="text-green-600 hover:text-green-900"
+                                className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
                                 title="短縮URLをコピー"
                               >
-                                URLコピー
-                              </button>
-                              <button
-                                onClick={() => copyToClipboard(link.affiliate_url, 'アフィリエイトURLをコピーしました！')}
-                                className="text-blue-600 hover:text-blue-900"
-                                title="元のURLをコピー"
-                              >
-                                元URLコピー
+                                URLをコピー
                               </button>
                               <button
                                 onClick={() => openPixelModal(link)}
-                                className="text-orange-600 hover:text-orange-900"
+                                className="px-3 py-1 bg-orange-600 text-white text-xs rounded hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
                                 title="ピクセルコードを確認"
                               >
                                 ピクセル確認
                               </button>
                               <button
                                 onClick={() => handleDelete(link.id)}
-                                className="text-red-600 hover:text-red-900"
+                                className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
                               >
                                 削除
                               </button>
