@@ -234,6 +234,7 @@ export default function DashboardPage() {
 
     switch (searchField) {
       case 'linkId':
+        // 検索結果だけをフィルタリングし、元のデータには影響を与えない
         results = allLogs.filter(log => 
           log.link_id.toLowerCase().includes(query)
         );
@@ -246,7 +247,8 @@ export default function DashboardPage() {
       case 'count':
         // クリック数は集計が必要なので異なる処理が必要
         const countMap = {};
-        allLogs.forEach(log => {
+        // 複製したデータを使用して元のデータへの影響を防ぐ
+        [...allLogs].forEach(log => {
           if (!countMap[log.link_id]) {
             countMap[log.link_id] = {
               count: 0,
@@ -275,7 +277,8 @@ export default function DashboardPage() {
 
     // 重複を排除せずに、クリック日時の降順で表示（クリック数の場合は除く）
     if (searchField !== 'count') {
-      results.sort((a, b) => new Date(b.clicked_at) - new Date(a.clicked_at));
+      // 配列のコピーを作成してソートすることで、元のデータには影響を与えない
+      results = [...results].sort((a, b) => new Date(b.clicked_at) - new Date(a.clicked_at));
     }
     
     setSearchResults(results);
@@ -328,7 +331,7 @@ export default function DashboardPage() {
                 <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px' }}>
                   最終クリック
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
                   クリック数
                 </th>
               </tr>
@@ -364,7 +367,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       {item.lastClicked ? format(parseISO(item.lastClicked), 'yyyy/MM/dd HH:mm') : '-'}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold text-right">
                       {item.count}
                     </td>
                   </tr>
@@ -472,26 +475,26 @@ export default function DashboardPage() {
     };
     
     return (
-      <div className="mt-4 overflow-hidden"> {/* 横スクロール無効化 */}
-        <table className="min-w-full divide-y divide-gray-200 table-fixed">
+      <div className="mt-4 overflow-x-auto"> {/* 横スクロール可能に修正 */}
+        <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 リンクID
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
                 短縮URL
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '250px' }}>
                 元URL
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                 クリック日時
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
                 デバイス
               </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
+              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px' }}>
                 参照元
               </th>
             </tr>
