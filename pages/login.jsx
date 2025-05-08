@@ -21,7 +21,7 @@ export default function LoginPage() {
         // 認証成功
         sessionStorage.setItem('isAuthenticated', 'true');
         sessionStorage.setItem('userEmail', email);
-        router.push('/admin');
+        router.push('/dashboard');
       } else {
         // 認証失敗
         setError('メールアドレスまたはパスワードが正しくありません。');

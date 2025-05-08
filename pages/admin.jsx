@@ -372,8 +372,8 @@ export default function AdminPanel() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-center">短縮URL管理画面</h1>
             <div className="flex space-x-4">
-          <Link href="/" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-            ホームに戻る
+          <Link href="/dashboard" className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500">
+            ダッシュボードに戻る
           </Link>
               <button 
                 onClick={handleLogout}
