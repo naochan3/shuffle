@@ -181,8 +181,7 @@ export default function DashboardPage() {
             lastClicked: timestampsObj[linkId] && timestampsObj[linkId].length > 0 ? 
               timestampsObj[linkId].sort((a, b) => new Date(b) - new Date(a))[0] : null
           }))
-          .sort((a, b) => b.count - a.count) // クリック数で降順ソート
-          .slice(0, 10); // 上位10件を取得
+          .sort((a, b) => b.count - a.count); // TOP10の制限を削除
       };
 
       const statsData = {
@@ -289,72 +288,174 @@ export default function DashboardPage() {
   };
 
   // 表形式でランキングを表示するコンポーネント
-  const RankingTable = ({ data }) => (
-    <div className="mt-4 overflow-hidden"> {/* overflow-x-auto から overflow-hidden に変更 */}
-      <table className="min-w-full divide-y divide-gray-200 table-fixed"> {/* table-fixed を追加してカラム幅を固定 */}
-        <thead className="bg-gray-50">
-          <tr>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[5%]">
-              ランク
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
-              リンクID
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
-              短縮URL
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[40%]">
-              元URL
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[20%]">
-              最終クリック
-            </th>
-            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
-              クリック数
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {data.length === 0 ? (
-            <tr>
-              <td colSpan="6" className="px-4 py-4 text-center text-sm text-gray-500">
-                データがありません
-              </td>
-            </tr>
-          ) : (
-            data.map((item, index) => (
-              <tr key={item.linkId}>
-                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {index + 1}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
-                  {item.linkId}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
-                  <a href={item.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                    {item.shortUrl.split('/').pop()}
-                  </a>
-                </td>
-                <td className="px-4 py-4 text-sm text-gray-500">
-                  <div className="truncate">
-                    <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      {shortenUrl(item.targetUrl, 30)}
-                    </a>
-                  </div>
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {item.lastClicked ? format(parseISO(item.lastClicked), 'yyyy/MM/dd HH:mm') : '-'}
-                </td>
-                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {item.count}
-                </td>
+  const RankingTable = ({ data }) => {
+    // ページネーション用の状態追加
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+    const totalItems = data.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    
+    // 現在のページのデータのみを表示
+    const currentData = data.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+    
+    // ページ切り替え関数
+    const handlePageChange = (pageNumber) => {
+      setCurrentPage(pageNumber);
+      // ページの先頭にスクロール
+      window.scrollTo(0, 0);
+    };
+    
+    return (
+      <div className="mt-4">
+        <div className="overflow-hidden w-full"> {/* 幅を100%に固定 */}
+          <table className="min-w-full divide-y divide-gray-200 table-fixed">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[5%]">
+                  ランク
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                  リンクID
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+                  短縮URL
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">
+                  元URL
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
+                  最終クリック
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                  クリック数
+                </th>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {currentData.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-4 py-4 text-center text-sm text-gray-500">
+                    データがありません
+                  </td>
+                </tr>
+              ) : (
+                currentData.map((item, index) => (
+                  <tr key={item.linkId}>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
+                      {item.linkId}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
+                      <a href={item.shortUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {item.shortUrl.split('/').pop()}
+                      </a>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-500">
+                      <div className="truncate">
+                        <a href={item.targetUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                          {shortenUrl(item.targetUrl, 30)}
+                        </a>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.lastClicked ? format(parseISO(item.lastClicked), 'yyyy/MM/dd HH:mm') : '-'}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                      {item.count}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* ページネーション */}
+        {totalItems > 0 && (
+          <div className="mt-4 flex justify-between items-center">
+            <div className="text-sm text-gray-500">
+              全 {totalItems} 件中 {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} 件表示
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className={`px-3 py-1 border rounded ${
+                  currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                最初
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`px-3 py-1 border rounded ${
+                  currentPage === 1 ? 'bg-gray-100 text-gray-400' : 'bg-white text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                前へ
+              </button>
+              
+              {/* ページ番号表示 */}
+              <div className="flex space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  // 現在のページを中心に表示するための計算
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return pageNum > 0 && pageNum <= totalPages ? (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`px-3 py-1 border rounded ${
+                        currentPage === pageNum
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-blue-600 hover:bg-blue-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ) : null;
+                })}
+              </div>
+              
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`px-3 py-1 border rounded ${
+                  currentPage === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                次へ
+              </button>
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className={`px-3 py-1 border rounded ${
+                  currentPage === totalPages ? 'bg-gray-100 text-gray-400' : 'bg-white text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                最後
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // 検索結果テーブル
   const SearchResultsTable = ({ results }) => {
@@ -541,45 +642,130 @@ export default function DashboardPage() {
             <form onSubmit={handleDateRangeSubmit} className="flex flex-wrap items-end gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">開始日</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                  <div className="absolute right-0 top-0 h-full flex items-center pr-2 text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">終了日</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                  <div className="absolute right-0 top-0 h-full flex items-center pr-2 text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                期間を適用
-              </button>
-              {customDateActive && (
+              
+              {/* 簡易日付選択ボタン */}
+              <div className="flex flex-wrap gap-2 mt-2">
                 <button
                   type="button"
                   onClick={() => {
-                    setStartDate('');
-                    setEndDate('');
-                    setCustomDateActive(false);
-                    setActiveTab('daily'); // デフォルトタブに戻す
-                    fetchData(); // データを再取得
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    setStartDate(format(yesterday, 'yyyy-MM-dd'));
+                    setEndDate(format(today, 'yyyy-MM-dd'));
                   }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
                 >
-                  期間指定をクリア
+                  昨日〜今日
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const lastWeek = new Date();
+                    lastWeek.setDate(lastWeek.getDate() - 7);
+                    setStartDate(format(lastWeek, 'yyyy-MM-dd'));
+                    setEndDate(format(today, 'yyyy-MM-dd'));
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  過去7日間
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const lastMonth = new Date();
+                    lastMonth.setDate(lastMonth.getDate() - 30);
+                    setStartDate(format(lastMonth, 'yyyy-MM-dd'));
+                    setEndDate(format(today, 'yyyy-MM-dd'));
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  過去30日間
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                    setStartDate(format(thisMonthStart, 'yyyy-MM-dd'));
+                    setEndDate(format(today, 'yyyy-MM-dd'));
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  今月
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                    setStartDate(format(lastMonthStart, 'yyyy-MM-dd'));
+                    setEndDate(format(lastMonthEnd, 'yyyy-MM-dd'));
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                >
+                  先月
+                </button>
+              </div>
+              
+              <div className="mt-4 w-full flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  期間を適用
+                </button>
+                {customDateActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                      setCustomDateActive(false);
+                      setActiveTab('daily'); // デフォルトタブに戻す
+                      fetchData(); // データを再取得
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  >
+                    期間指定をクリア
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
