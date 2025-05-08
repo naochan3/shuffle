@@ -301,35 +301,34 @@ export default function DashboardPage() {
       currentPage * itemsPerPage
     );
     
-    // ページ切り替え関数
+    // ページ切り替え関数 - スクロールを上に戻す動作を削除
     const handlePageChange = (pageNumber) => {
       setCurrentPage(pageNumber);
-      // ページの先頭にスクロール
-      window.scrollTo(0, 0);
+      // スクロール動作を削除
     };
     
     return (
       <div className="mt-4">
-        <div className="overflow-hidden w-full"> {/* 幅を100%に固定 */}
-          <table className="min-w-full divide-y divide-gray-200 table-fixed">
+        <div className="overflow-x-auto"> {/* overflow-hiddenからoverflow-x-autoに変更して横スクロール可能に */}
+          <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[5%]">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '60px' }}>
                   ランク
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '150px' }}>
                   リンクID
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
                   短縮URL
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '250px' }}>
                   元URL
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px' }}>
                   最終クリック
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '120px' }}>
                   クリック数
                 </th>
               </tr>
@@ -377,11 +376,11 @@ export default function DashboardPage() {
         
         {/* ページネーション */}
         {totalItems > 0 && (
-          <div className="mt-4 flex justify-between items-center">
-            <div className="text-sm text-gray-500">
+          <div className="mt-4 flex flex-wrap justify-between items-center">
+            <div className="text-sm text-gray-500 mb-2 sm:mb-0">
               全 {totalItems} 件中 {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} 件表示
             </div>
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => handlePageChange(1)}
                 disabled={currentPage === 1}
@@ -402,7 +401,7 @@ export default function DashboardPage() {
               </button>
               
               {/* ページ番号表示 */}
-              <div className="flex space-x-1">
+              <div className="flex flex-wrap gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   // 現在のページを中心に表示するための計算
                   let pageNum;
@@ -642,37 +641,23 @@ export default function DashboardPage() {
             <form onSubmit={handleDateRangeSubmit} className="flex flex-wrap items-end gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">開始日</label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <div className="absolute right-0 top-0 h-full flex items-center pr-2 text-gray-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">終了日</label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                  <div className="absolute right-0 top-0 h-full flex items-center pr-2 text-gray-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
               </div>
               
               {/* 簡易日付選択ボタン */}
