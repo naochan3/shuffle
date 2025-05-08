@@ -20,7 +20,7 @@ export default function LoginPage() {
           password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
         // クライアントサイドでのセッション保存
         sessionStorage.setItem('isAuthenticated', 'true');
-        router.push('/admin');
+        router.push('/dashboard');
       } else {
         throw new Error('メールアドレスまたはパスワードが正しくありません。');
       }
@@ -57,7 +57,7 @@ export default function LoginPage() {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
-
+            
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 パスワード
@@ -71,11 +71,11 @@ export default function LoginPage() {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
-
+            
             {error && (
               <div className="text-red-600 text-sm">
                 {error}
-              </div>
+            </div>
             )}
 
             <button
@@ -87,7 +87,7 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-      </div>
+        </div>
     </div>
   );
 } 
