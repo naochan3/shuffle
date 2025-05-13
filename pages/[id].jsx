@@ -51,9 +51,9 @@ export default function RedirectPage({ link, meta, error: serverError }) {
         if (link.pixel_code) {
           console.log('TikTokピクセル: 初期化を確認');
           
-          // TikTokピクセルの初期化を待機
+          // TikTokピクセルの初期化を待機 - 10秒に短縮（従来15秒）
           let attempts = 0;
-          const maxAttempts = 30; // 15秒まで待機（30回 × 500ms = 15秒）
+          const maxAttempts = 20; // 10秒まで待機（20回 × 500ms = 10秒）
           const waitTime = 500; // 0.5秒ごとにチェック
 
           while (attempts < maxAttempts) {
@@ -89,19 +89,19 @@ export default function RedirectPage({ link, meta, error: serverError }) {
                 console.log('TikTokピクセル: CompletePaymentイベントは既に含まれています');
               }
 
-              // イベント送信後の待機時間（3500ms = 3.5秒に短縮）
-              console.log('TikTokピクセル: イベント発火を確実にするため待機中... (3.5秒)');
-              await new Promise(resolve => setTimeout(resolve, 3500));
+              // イベント送信後の待機時間（2000ms = 2秒に短縮）
+              console.log('TikTokピクセル: イベント発火を確実にするため待機中... (2秒)');
+              await new Promise(resolve => setTimeout(resolve, 2000));
               console.log('TikTokピクセル: 待機完了、リダイレクトを実行します');
             } catch (eventError) {
               console.error('TikTokピクセル: イベント送信エラー', eventError);
-              // エラー時でも少し待機してからリダイレクト
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              // エラー時の待機時間も短縮（500ms）
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
           } else {
             console.warn('TikTokピクセル: 初期化確認失敗 - 最大試行回数に到達');
-            // 初期化失敗時も少し待機
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 初期化失敗時の待機時間も短縮（1000ms = 1秒）
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
 
