@@ -573,6 +573,19 @@ export default function DashboardPage() {
   const convertSearchResultsToCSV = (results) => {
     if (!results || results.length === 0) return '';
     
+    // ユーザーエージェント情報からデバイス情報を取得する関数（SearchResultsTableと同じ関数）
+    const getDeviceInfoForCSV = (userAgent) => {
+      if (!userAgent) return '不明';
+      
+      if (userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS';
+      if (userAgent.includes('Android')) return 'Android';
+      if (userAgent.includes('Windows')) return 'Windows';
+      if (userAgent.includes('Mac')) return 'Mac';
+      if (userAgent.includes('Linux')) return 'Linux';
+      
+      return 'その他';
+    };
+    
     // 検索結果用のヘッダー
     const headers = ['リンクID', '短縮URL', '元URL', 'クリック日時', 'デバイス', '参照元'];
     const csvRows = [headers.join(',')];
@@ -584,7 +597,7 @@ export default function DashboardPage() {
       const targetUrl = `"${item.targetUrl.replace(/"/g, '""')}"`;
       const clickedAt = item.clicked_at ? format(parseISO(item.clicked_at), 'yyyy/MM/dd HH:mm:ss') : 
                        (item.count ? `${item.count} クリック` : '-');
-      const device = item.user_agent ? getDeviceInfo(item.user_agent) : '-';
+      const device = item.user_agent ? getDeviceInfoForCSV(item.user_agent) : '-';
       const referrer = item.referrer ? `"${item.referrer.replace(/"/g, '""')}"` : '-';
       
       csvRows.push([linkId, shortUrl, targetUrl, clickedAt, device, referrer].join(','));
@@ -632,18 +645,30 @@ export default function DashboardPage() {
         break;
       case 'customRange':
         csvData = convertToCSV(stats.customRange, 'custom');
-        fileName = `${today}_${startDate.replace(/-/g, '')}_${endDate.replace(/-/g, '')}_custom_stats.csv`;
+        // カスタム期間の名前を改善
+        const startFormatted = format(new Date(startDate), 'yyyyMMdd');
+        const endFormatted = format(new Date(endDate), 'yyyyMMdd');
+        fileName = `${today}_customRange_${startFormatted}-${endFormatted}.csv`;
         break;
       case 'search':
         csvData = convertSearchResultsToCSV(searchResults);
-        fileName = `${today}_search_results.csv`;
+        // 検索キーワードをファイル名に含める（長すぎる場合は切り詰める）
+        const searchKeyword = searchQuery.trim() ? 
+                             searchQuery.trim().replace(/[\\/:*?"<>|]/g, '_').substring(0, 30) : 
+                             'all';
+        fileName = `${today}_search_${searchField}_${searchKeyword}.csv`;
         break;
       default:
         csvData = convertToCSV(stats[activeTab], activeTab);
         fileName = `${today}_${activeTab}_stats.csv`;
     }
     
-    downloadCSV(csvData, fileName);
+    // 実際のダウンロード実行
+    if (csvData) {
+      downloadCSV(csvData, fileName);
+    } else {
+      console.error('CSV出力に失敗しました: データが見つかりません');
+    }
   };
 
   return (
