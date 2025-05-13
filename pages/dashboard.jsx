@@ -545,6 +545,107 @@ export default function DashboardPage() {
     );
   };
 
+  // CSV関連の関数を追加
+  // データをCSV形式に変換する関数
+  const convertToCSV = (data, periodType = 'custom') => {
+    if (!data || data.length === 0) return '';
+    
+    // ヘッダー行
+    const headers = ['ランク', 'リンクID', '短縮URL', '元URL', '最終クリック', 'クリック数'];
+    const csvRows = [headers.join(',')];
+    
+    // データ行
+    data.forEach((item, index) => {
+      const rank = index + 1;
+      const linkId = item.linkId;
+      const shortUrl = item.shortUrl;
+      const targetUrl = `"${item.targetUrl.replace(/"/g, '""')}"`;  // カンマを含む可能性があるのでダブルクォートで囲む
+      const lastClicked = item.lastClicked ? format(parseISO(item.lastClicked), 'yyyy/MM/dd HH:mm') : '-';
+      const count = item.count;
+      
+      csvRows.push([rank, linkId, shortUrl, targetUrl, lastClicked, count].join(','));
+    });
+    
+    return csvRows.join('\n');
+  };
+  
+  // 検索結果をCSV形式に変換する関数
+  const convertSearchResultsToCSV = (results) => {
+    if (!results || results.length === 0) return '';
+    
+    // 検索結果用のヘッダー
+    const headers = ['リンクID', '短縮URL', '元URL', 'クリック日時', 'デバイス', '参照元'];
+    const csvRows = [headers.join(',')];
+    
+    // データ行
+    results.forEach(item => {
+      const linkId = item.link_id || item.linkId;
+      const shortUrl = item.shortUrl;
+      const targetUrl = `"${item.targetUrl.replace(/"/g, '""')}"`;
+      const clickedAt = item.clicked_at ? format(parseISO(item.clicked_at), 'yyyy/MM/dd HH:mm:ss') : 
+                       (item.count ? `${item.count} クリック` : '-');
+      const device = item.user_agent ? getDeviceInfo(item.user_agent) : '-';
+      const referrer = item.referrer ? `"${item.referrer.replace(/"/g, '""')}"` : '-';
+      
+      csvRows.push([linkId, shortUrl, targetUrl, clickedAt, device, referrer].join(','));
+    });
+    
+    return csvRows.join('\n');
+  };
+  
+  // CSVファイルをダウンロードする関数
+  const downloadCSV = (csvContent, fileName) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+  // CSV出力ボタンのクリックハンドラ
+  const handleExportCSV = (periodType) => {
+    let csvData;
+    let fileName;
+    const today = format(new Date(), 'yyyyMMdd');
+    
+    // 選択中のタブに応じてデータとファイル名を設定
+    switch (periodType) {
+      case 'daily':
+        csvData = convertToCSV(stats.daily, 'daily');
+        fileName = `${today}_daily_stats.csv`;
+        break;
+      case 'weekly':
+        csvData = convertToCSV(stats.weekly, 'weekly');
+        fileName = `${today}_weekly_stats.csv`;
+        break;
+      case 'monthly':
+        csvData = convertToCSV(stats.monthly, 'monthly');
+        fileName = `${today}_monthly_stats.csv`;
+        break;
+      case 'allTime':
+        csvData = convertToCSV(stats.allTime, 'allTime');
+        fileName = `${today}_allTime_stats.csv`;
+        break;
+      case 'customRange':
+        csvData = convertToCSV(stats.customRange, 'custom');
+        fileName = `${today}_${startDate.replace(/-/g, '')}_${endDate.replace(/-/g, '')}_custom_stats.csv`;
+        break;
+      case 'search':
+        csvData = convertSearchResultsToCSV(searchResults);
+        fileName = `${today}_search_results.csv`;
+        break;
+      default:
+        csvData = convertToCSV(stats[activeTab], activeTab);
+        fileName = `${today}_${activeTab}_stats.csv`;
+    }
+    
+    downloadCSV(csvData, fileName);
+  };
+
   return (
     <AuthCheck>
       <div className="min-h-screen bg-gray-50">
@@ -632,7 +733,18 @@ export default function DashboardPage() {
 
             {searchResults && (
               <div className="mt-4">
-                <h3 className="text-lg font-medium mb-2">検索結果 ({searchResults.length}件)</h3>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="text-lg font-medium">検索結果 ({searchResults.length}件)</h3>
+                  <button
+                    onClick={() => handleExportCSV('search')}
+                    className="flex items-center text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    CSV出力
+                  </button>
+                </div>
                 <SearchResultsTable results={searchResults} />
               </div>
             )}
@@ -826,33 +938,88 @@ export default function DashboardPage() {
               <div className="mt-4">
                 {activeTab === 'daily' && (
                   <div>
-                    <h3 className="text-lg font-medium mb-2">デイリーランキング (過去24時間)</h3>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-lg font-medium">デイリーランキング (過去24時間)</h3>
+                      <button
+                        onClick={() => handleExportCSV('daily')}
+                        className="flex items-center text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        CSV出力
+                      </button>
+                    </div>
                     <RankingTable data={stats.daily} />
                   </div>
                 )}
                 {activeTab === 'weekly' && (
                   <div>
-                    <h3 className="text-lg font-medium mb-2">ウィークリーランキング (過去7日間)</h3>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-lg font-medium">ウィークリーランキング (過去7日間)</h3>
+                      <button
+                        onClick={() => handleExportCSV('weekly')}
+                        className="flex items-center text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        CSV出力
+                      </button>
+                    </div>
                     <RankingTable data={stats.weekly} />
                   </div>
                 )}
                 {activeTab === 'monthly' && (
                   <div>
-                    <h3 className="text-lg font-medium mb-2">マンスリーランキング (過去30日間)</h3>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-lg font-medium">マンスリーランキング (過去30日間)</h3>
+                      <button
+                        onClick={() => handleExportCSV('monthly')}
+                        className="flex items-center text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        CSV出力
+                      </button>
+                    </div>
                     <RankingTable data={stats.monthly} />
                   </div>
                 )}
                 {activeTab === 'allTime' && (
                   <div>
-                    <h3 className="text-lg font-medium mb-2">全期間ランキング</h3>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-lg font-medium">全期間ランキング</h3>
+                      <button
+                        onClick={() => handleExportCSV('allTime')}
+                        className="flex items-center text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        CSV出力
+                      </button>
+                    </div>
                     <RankingTable data={stats.allTime} />
                   </div>
                 )}
                 {activeTab === 'customRange' && customDateActive && (
                   <div>
-                    <h3 className="text-lg font-medium mb-2">
-                      カスタム期間ランキング ({startDate} 〜 {endDate})
-                    </h3>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-lg font-medium">
+                        カスタム期間ランキング ({startDate} 〜 {endDate})
+                      </h3>
+                      <button
+                        onClick={() => handleExportCSV('customRange')}
+                        className="flex items-center text-sm px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        CSV出力
+                      </button>
+                    </div>
                     <RankingTable data={stats.customRange || []} />
                   </div>
                 )}
