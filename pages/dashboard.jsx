@@ -53,7 +53,6 @@ export default function DashboardPage() {
       const { data: clickLogs, error: clickLogsError } = await supabase
         .from('click_logs')
         .select('*')
-        .limit(10000)
         .order('clicked_at', { ascending: false });
 
       if (clickLogsError) {
