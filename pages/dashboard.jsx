@@ -50,10 +50,49 @@ export default function DashboardPage() {
       const lastMonthStart = startOfMonth(subDays(now, 30));
 
       // すべてのクリックログを取得（タイムスタンプ付き）
-      const { data: clickLogs, error: clickLogsError } = await supabase
-        .from('click_logs')
-        .select('*')
-        .order('clicked_at', { ascending: false });
+      // まず通常のテーブルからデータを取得
+      let clickLogs = [];
+      let clickLogsError = null;
+      
+      try {
+        const { data: mainData, error: mainError } = await supabase
+          .from('click_logs')
+          .select('*')
+          .order('clicked_at', { ascending: false });
+          
+        if (!mainError && mainData) {
+          clickLogs = mainData;
+        }
+
+        // すべてのパーティションからもデータを取得
+        const partitions = [
+          'click_logs_y2024m01', 'click_logs_y2024m02', 'click_logs_y2024m03', 'click_logs_y2024m04',
+          'click_logs_y2024m05', 'click_logs_y2024m06', 'click_logs_y2024m07', 'click_logs_y2024m08',
+          'click_logs_y2024m09', 'click_logs_y2024m10', 'click_logs_y2024m11', 'click_logs_y2024m12',
+          'click_logs_y2025m01', 'click_logs_y2025m02', 'click_logs_y2025m03', 'click_logs_y2025m04', 
+          'click_logs_y2025m05', 'click_logs_y2025m06'
+        ];
+        
+        for (const partition of partitions) {
+          const { data, error } = await supabase
+            .from(partition)
+            .select('*');
+            
+          if (!error && data && data.length > 0) {
+            clickLogs = [...clickLogs, ...data];
+          }
+        }
+        
+        // 重複を排除
+        const uniqueIds = {};
+        clickLogs = clickLogs.filter(log => {
+          if (uniqueIds[log.id]) return false;
+          uniqueIds[log.id] = true;
+          return true;
+        });
+      } catch (err) {
+        clickLogsError = { message: err.message || 'エラーが発生しました' };
+      }
 
       if (clickLogsError) {
         throw new Error(`クリックログの取得中にエラーが発生しました: ${clickLogsError.message}`);
