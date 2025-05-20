@@ -57,13 +57,20 @@ export default function DashboardPage() {
       try {
         const { data: mainData, error: mainError } = await supabase
           .from('click_logs')
-          .select('*')
+          .select('*', { count: 'exact' })
           .order('clicked_at', { ascending: false });
           
         if (!mainError && mainData) {
           clickLogs = mainData;
         }
 
+        // 全件数を取得するためのカウントクエリを実行
+        const { count: totalCount, error: countError } = await supabase
+          .from('click_logs')
+          .select('*', { count: 'exact', head: true });
+        
+        let partitionTotalCount = 0;
+        
         // すべてのパーティションからもデータを取得
         const partitions = [
           'click_logs_y2024m01', 'click_logs_y2024m02', 'click_logs_y2024m03', 'click_logs_y2024m04',
@@ -74,12 +81,31 @@ export default function DashboardPage() {
         ];
         
         for (const partition of partitions) {
-          const { data, error } = await supabase
+          // まず各パーティションの件数を取得
+          const { count: partCount, error: partCountError } = await supabase
             .from(partition)
-            .select('*');
+            .select('*', { count: 'exact', head: true });
             
-          if (!error && data && data.length > 0) {
-            clickLogs = [...clickLogs, ...data];
+          if (!partCountError && partCount) {
+            partitionTotalCount += partCount;
+          }
+          
+          // 次にデータをページネーションで取得（最大10000件まで）
+          if (!partCountError && partCount > 0) {
+            // 1回のクエリで最大1000件までしか取得できないため分割して取得
+            const batchSize = 1000;
+            const batchCount = Math.ceil(Math.min(partCount, 10000) / batchSize);
+            
+            for (let i = 0; i < batchCount; i++) {
+              const { data, error } = await supabase
+                .from(partition)
+                .select('*')
+                .range(i * batchSize, (i + 1) * batchSize - 1);
+                
+              if (!error && data && data.length > 0) {
+                clickLogs = [...clickLogs, ...data];
+              }
+            }
           }
         }
         
@@ -90,6 +116,16 @@ export default function DashboardPage() {
           uniqueIds[log.id] = true;
           return true;
         });
+        
+        // 実際のクリック数をカウント数から設定（データが1000件を超える場合）
+        const actualTotalCount = (totalCount || 0) + partitionTotalCount;
+        if (actualTotalCount > clickLogs.length) {
+          // APIの制限を超えたカウント数を表示に利用
+          setTotalClicks(actualTotalCount);
+        } else {
+          // 実際のデータ件数を使用
+          setTotalClicks(clickLogs.length);
+        }
       } catch (err) {
         clickLogsError = { message: err.message || 'エラーが発生しました' };
       }
@@ -97,9 +133,6 @@ export default function DashboardPage() {
       if (clickLogsError) {
         throw new Error(`クリックログの取得中にエラーが発生しました: ${clickLogsError.message}`);
       }
-
-      // 総クリック数を設定
-      setTotalClicks(clickLogs.length);
 
       // リンク情報を取得
       const { data: links, error: linksError } = await supabase
